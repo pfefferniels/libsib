@@ -4,25 +4,6 @@ Notes on the format as far as this crate understands it. They describe what the
 code in `src/` implements and was tested against. Where a statement rests on
 inference rather than on code read from a Sibelius binary, it says so.
 
-## Sources
-
-- **Sibelius 8.3.0 for macOS** (official Avid installer). The payload grammar is
-  translated from its `ScoreInStream` readers, decompiled with Ghidra. Every
-  generated reader cites the address of the function it comes from
-  (`/// 8.3.0 0x…`), and field names are the element names those readers pass
-  to `SIS_Enter`, which Sibelius also uses for its XML form.
-- **Sibelius 2025.3 for macOS** (Avid-signed and notarised installer). Its
-  readers were matched to the 8.3.0 ones by the literals and calls they share,
-  and every field they read beyond 8.3.0 was ported by hand
-  (`src/grammar/later.rs`, citing `2025.3 0x…`).
-- **SCORA** by cw2k (<https://github.com/cw2k/SCORA>). The keystream cipher
-  below was first published there, in `CryptedStream.java`.
-- **Test files**: 363 files with container versions 0x20001 (Sibelius 1.x) to
-  0x450005 (Sibelius 2025). They come from the author's own scores, the examples
-  shipped with Sibelius 8.3.0 and 2025.3, the MIT-licensed test files of
-  [sibmei](https://github.com/music-encoding/sibmei) and a few public GitHub
-  repositories. None of them is distributed with the crate.
-
 ## Container
 
 A file is a tree of chunks. Every chunk has the same layout, all integers
