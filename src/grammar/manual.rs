@@ -127,9 +127,11 @@ pub(super) fn note_style(r: &mut Reader) -> Result<()> {
 
 /// 8.3.0 `0x100fd7194`: a list of instrument instances (files before 0x2d0000).
 fn instance_list(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| r.sub("Instance", instance).map(Value::Node)).map(drop)
+    r.list(name, |r| {
+        r.sub("InstrumentInstance", instrument_instance).map(Value::Node)
+    })
+    .map(drop)
 }
-
 
 /// 8.3.0 `0x100fcb520`: the whole musical content. Written for a normal file
 /// load: not a part being linked to a master score, never cancelled.
@@ -140,12 +142,12 @@ pub(super) fn music(r: &mut Reader) -> Result<()> {
     list_midiconnections(r, "MIDIConnections")?;
     r.node("SpacingTable", "SpacingTable", spacing_table)?;
     if v > 0x2bffff {
-        f_100fd72a5(r, "DeletedStaveKeywords")?;
-        f_100fd72a5(r, "DeletedSystemKeywords")?;
+        list_keyword_names(r, "DeletedStaveKeywords")?;
+        list_keyword_names(r, "DeletedSystemKeywords")?;
         list_deleted_line_pb_styles(r, "DeletedLinePbStyles")?;
-        f_100fd73cb(r, "DeletedArticulationPbStyles")?;
-        f_100fd73cb(r, "DeletedNoteheadPbStyles")?;
-        f_100fd73cb(r, "DeletedSymbolPbStyles")?;
+        list_style_nums(r, "DeletedArticulationPbStyles")?;
+        list_style_nums(r, "DeletedNoteheadPbStyles")?;
+        list_style_nums(r, "DeletedSymbolPbStyles")?;
     }
     if v > 0x2affff {
         list_line_playback_style_list(r, "LinePlaybackStyleList")?;
@@ -243,9 +245,9 @@ pub(super) fn music(r: &mut Reader) -> Result<()> {
             if r.since(0x1b_0000) {
                 r.u32("WorksheetQuestionsPerSystem")?;
             }
-            ["Student", "Teacher"].iter().try_for_each(|_| {
-                r.list_n("WorksheetVoicesVisible", 4, |r| r.read_u8().map(Value::Bool))
-            })?;
+            ["Student", "Teacher"]
+                .iter()
+                .try_for_each(|_| r.list_n("WorksheetVoicesVisible", 4, |r| r.read_u8().map(Value::Bool)))?;
         }
         if r.since(0xf_0002) {
             r.string("PartExtractionFileSpec")?;
@@ -349,7 +351,7 @@ pub(super) fn midi_settings(r: &mut Reader) -> Result<()> {
 
 /// 8.3.0 `0x100d8f25c`: an image, stored either as ARGB pixels or as an
 /// embedded (or linked) file.
-pub(super) fn graphic(r: &mut Reader) -> Result<()> {
+pub(super) fn graphic_data(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     r.tag(0x5c)?;
     let embedded = v >= 0x370001 && r.bool("FileEmbedded")?;
@@ -385,7 +387,6 @@ pub(super) fn graphic(r: &mut Reader) -> Result<()> {
     })
 }
 
-
 /// Whether `tag` starts a bar object (8.3.0 `0x100d8e29a`).
 fn is_bar_object_tag(tag: u8) -> bool {
     (7..0x2e).contains(&tag) || tag & !1 == 0x92
@@ -395,43 +396,43 @@ fn is_bar_object_tag(tag: u8) -> bool {
 /// carry a varint-length record that Sibelius skips.
 pub(super) fn bar_object(r: &mut Reader) -> Result<()> {
     match r.any_tag()? {
-        0x07 => bar_object_07(r),
-        0x08 => bar_object_08(r),
-        0x09 => bar_object_09(r),
-        0x0a => bar_object_0a(r),
-        0x0c => bar_object_0c_16_17(r),
-        0x0d => bar_object_0d(r),
-        0x0e => bar_object_0e_0f(r),
-        0x0f => bar_object_0e_0f(r),
-        0x10 => bar_object_10(r),
-        0x11 => bar_object_11(r),
-        0x12 => bar_object_12(r),
-        0x13 => bar_object_13(r),
-        0x14 => bar_object_14(r),
-        0x15 => bar_object_15(r),
-        0x16 => bar_object_0c_16_17(r),
-        0x17 => bar_object_0c_16_17(r),
-        0x18 => bar_object_18(r),
-        0x19 => bar_object_19(r),
-        0x1a => bar_object_1a(r),
-        0x1b => bar_object_1b(r),
+        0x07 => clef(r),
+        0x08 => special_barline(r),
+        0x09 => time_signature(r),
+        0x0a => key_signature(r),
+        0x0c => music_line(r),
+        0x0d => arpeggio_line(r),
+        0x0e => hairpin(r),
+        0x0f => hairpin(r),
+        0x10 => glissando_line(r),
+        0x11 => octava_line(r),
+        0x12 => pedal_line(r),
+        0x13 => repeat_time_line(r),
+        0x14 => slur(r),
+        0x15 => trill(r),
+        0x16 => music_line(r),
+        0x17 => music_line(r),
+        0x18 => tuplet(r),
+        0x19 => lyric_item(r),
+        0x1a => highlight(r),
+        0x1b => ritard_line(r),
         0x1c => staff_filter(r),
-        0x1f => bar_object_1f(r),
-        0x21 => bar_object_21(r),
-        0x22 => bar_object_22(r),
-        0x23 => bar_object_23(r),
-        0x24 => chord_symbol(r),
-        0x25 => bar_object_25(r),
-        0x26 => bar_object_26(r),
-        0x27 => bar_object_27(r),
-        0x28 => bar_object_28(r),
-        0x29 => bar_object_29(r),
-        0x2a => bar_object_2a(r),
-        0x2b => bar_object_2b(r),
-        0x2c => bar_object_2c(r),
-        0x2d => bar_object_2d(r),
-        0x92 => bar_object_base(r),
-        0x93 => bar_object_93(r),
+        0x1f => symbol_item(r),
+        0x21 => system_text_item(r),
+        0x22 => text_item(r),
+        0x23 => bar_number(r),
+        0x24 => guitar_frame(r),
+        0x25 => transposition(r),
+        0x26 => rehearsal_mark(r),
+        0x27 => instrument_change(r),
+        0x28 => bar_rest(r),
+        0x29 => note_rest(r),
+        0x2a => graphic(r),
+        0x2b => system_symbol_item(r),
+        0x2c => comment_item(r),
+        0x2d => player_change(r),
+        0x92 => item(r),
+        0x93 => annotation_item(r),
         _ => r.record("unknown", "Unknown", |_| Ok(())),
     }
 }
@@ -455,7 +456,13 @@ pub(super) fn bar(r: &mut Reader) -> Result<()> {
         while r.peek_u8().is_ok_and(is_bar_object_tag) {
             items.push(Value::Node(r.sub("BarObject", bar_object)?));
         }
-        r.push("Items", Value::List(crate::tree::List { count: crate::tree::Count::Implied, items }));
+        r.push(
+            "Items",
+            Value::List(crate::tree::List {
+                count: crate::tree::Count::Implied,
+                items,
+            }),
+        );
     } else {
         r.list("Items", |r| {
             let tag = r.peek_u8()?;
@@ -505,7 +512,7 @@ const KEYWORD_CATEGORIES: [&str; 19] = [
 /// keyword (tag 0x51).
 pub(super) fn keyword(r: &mut Reader) -> Result<()> {
     match r.any_tag()? {
-        0x52 => playback_keyword(r),
+        0x52 => music_keyword(r),
         0x51 => {
             keyword_base(r)?;
             r.record("record", "Record", |_| Ok(()))
@@ -515,7 +522,7 @@ pub(super) fn keyword(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100e08286`. The category is stored by name; unknown names act as "None".
-fn playback_keyword(r: &mut Reader) -> Result<()> {
+fn music_keyword(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     keyword_base(r)?;
     let category = r.read_string()?;
@@ -621,14 +628,25 @@ fn playback_keyword(r: &mut Reader) -> Result<()> {
 pub(super) fn instance_names(r: &mut Reader) -> Result<()> {
     pm_styled_string(r, "FullName")?;
     pm_styled_string(r, "ShortName")?;
-    ["FullNameOffsetX", "FullNameOffsetY", "ShortNameOffsetX", "ShortNameOffsetY"]
-        .into_iter()
-        .try_for_each(|name| if r.file_version < WIDE_COORDINATES { pm_u16(r, name) } else { pm_u32(r, name) })
+    [
+        "FullNameOffsetX",
+        "FullNameOffsetY",
+        "ShortNameOffsetX",
+        "ShortNameOffsetY",
+    ]
+    .into_iter()
+    .try_for_each(|name| {
+        if r.file_version < WIDE_COORDINATES {
+            pm_u16(r, name)
+        } else {
+            pm_u32(r, name)
+        }
+    })
 }
 
 /// 8.3.0 `0x10102b908`: an instrument instance (names, name offsets, type id).
 /// Files before 0x1f0000 describe the instrument inline instead of naming a type.
-pub(super) fn instance(r: &mut Reader) -> Result<()> {
+pub(super) fn instrument_instance(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     r.tag(0x02)?;
     if v > 0x23_ffff && v < 0x2d_0000 {
@@ -762,7 +780,10 @@ pub(super) fn curve_line(r: &mut Reader) -> Result<()> {
                 ["BezierControlPtLeft", "BezierControlPtRight"]
             };
             let edited = if suffix {
-                ["LeftBezierControlPtEdited2ndSegment", "RightBezierControlPtEdited2ndSegment"]
+                [
+                    "LeftBezierControlPtEdited2ndSegment",
+                    "RightBezierControlPtEdited2ndSegment",
+                ]
             } else {
                 ["LeftBezierControlPtEdited", "RightBezierControlPtEdited"]
             };
@@ -794,7 +815,7 @@ pub(super) fn curve_line(r: &mut Reader) -> Result<()> {
 
 /// 8.3.0 `0x100de7f24`: an element of a chord symbol. The two type bytes are
 /// named through a table Sibelius fills at run time, so their names are ours.
-pub(super) fn chord_element(r: &mut Reader) -> Result<()> {
+pub(super) fn chord_element_body(r: &mut Reader) -> Result<()> {
     r.u8("Chrom2")?;
     r.u8("ElementType")?;
     r.record("record", "Record", |r| {
@@ -845,9 +866,9 @@ pub(super) fn scale(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100dab5f8` (bar object 0x24): chord symbol / guitar frame.
-pub(super) fn chord_symbol(r: &mut Reader) -> Result<()> {
+pub(super) fn guitar_frame(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
-    bar_object_base(r)?;
+    item(r)?;
     r.node("StaveTypeIndex", "StyleId", style_id)?;
     list_chord_elements(r, "temp")?;
     r.node("ChordName", "StyledString", styled_string)?;
@@ -917,7 +938,11 @@ pub(super) fn chord_symbol(r: &mut Reader) -> Result<()> {
             r.bool("bImportProblem")?;
         }
         if r.since(0x33_0000) {
-            r.node("GuitarFrameTextFormatting", "GuitarFrameTextFormatting", guitar_frame_text_formatting)?;
+            r.node(
+                "GuitarFrameTextFormatting",
+                "GuitarFrameTextFormatting",
+                guitar_frame_text_formatting,
+            )?;
         }
         if r.since(0x33_0002) {
             r.bool("InPurgatory")?;
@@ -989,7 +1014,11 @@ fn clip_music(r: &mut Reader, styles: u32) -> Result<()> {
         instrument_types(r)?;
         ensembles(r)?;
         if styles > 6 && styles < 9 {
-            r.node("InstrumentInstanceList", "InstrumentInstanceList", list_instrument_instances)?;
+            r.node(
+                "InstrumentInstanceList",
+                "InstrumentInstanceList",
+                list_instrument_instances,
+            )?;
         }
     }
     if styles > 0xb {
@@ -1005,7 +1034,7 @@ pub(super) fn score_unique_id(r: &mut Reader) -> Result<()> {
 
 /// 8.3.0 `0x100dd108c`: the object a selection holds. Sibelius peeks at the
 /// tag and lets the object's reader consume it; other tags leave it empty.
-pub(super) fn item(r: &mut Reader) -> Result<()> {
+pub(super) fn paste_item(r: &mut Reader) -> Result<()> {
     match r.peek_u8()? {
         0x04 => r.node("Stave", "Stave", stave),
         0x37 => r.node("BarSpacing", "BarSpacing", bar_spacing),
@@ -1030,8 +1059,10 @@ pub fn clip(r: &mut Reader) -> Result<()> {
         r.node("ClipboardContext", "ClipboardContext", clipboard_context)?;
     }
     clip_styles(r)?;
-    f_1010180a1(r)?;
-    r.list("Selections", |r| r.sub("Selection", selection).map(Value::Node))?;
+    list_graphic_data(r, "GraphicDataList")?;
+    r.list("Selections", |r| {
+        r.sub("PasteSelection", paste_selection).map(Value::Node)
+    })?;
     r.record("record", "Record", |r| {
         if r.since(0x29_ffff) {
             r.node("ClipboardContext", "ClipboardContext", clipboard_context)?;

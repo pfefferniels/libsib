@@ -15,11 +15,20 @@ fn title(doc: &Document) -> Option<String> {
 
 #[test]
 fn edited_title_survives_a_save() {
-    let Some(mut doc) = common::corpus().iter().filter_map(|p| Document::open(p).ok()).find(|d| title(d).is_some()) else {
+    let Some(mut doc) = common::corpus()
+        .iter()
+        .filter_map(|p| Document::open(p).ok())
+        .find(|d| title(d).is_some())
+    else {
         return;
     };
     let mut score = doc.score().unwrap();
-    let summary = score.root.node_mut("Score").and_then(|s| s.node_mut("Music")).and_then(|m| m.node_mut("Summary")).unwrap();
+    let summary = score
+        .root
+        .node_mut("Score")
+        .and_then(|s| s.node_mut("Music"))
+        .and_then(|m| m.node_mut("Summary"))
+        .unwrap();
     *summary.node_mut("Title").unwrap().get_mut("default").unwrap() = Value::str(TITLE);
     doc.set_score(&score).unwrap();
 

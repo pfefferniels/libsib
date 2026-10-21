@@ -19,7 +19,12 @@ fn container_round_trips_byte_for_byte() {
 fn root_stamp_is_byte_sum_of_remainder() {
     corpus().iter().for_each(|path| {
         let file = std::fs::read(path).unwrap();
-        assert_eq!(container::stored_stamp(&file), Some(container::byte_sum(&file[18..])), "{}", path.display());
+        assert_eq!(
+            container::stored_stamp(&file),
+            Some(container::byte_sum(&file[18..])),
+            "{}",
+            path.display()
+        );
     });
 }
 
@@ -32,4 +37,3 @@ fn every_chunk_decodes_completely_and_round_trips() {
         });
     });
 }
-

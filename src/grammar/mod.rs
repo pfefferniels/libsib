@@ -18,7 +18,6 @@ pub const MIN_VERSION: u32 = 0x0002_0000;
 /// records are reread with when bytes are left over.
 pub const NEWEST_VERSION: u32 = 0x0045_0004;
 
-
 /// What a payload holds, and so which reader starts it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Entry {
@@ -64,10 +63,14 @@ impl Parsed {
 }
 
 pub fn parse(data: &[u8], entry: Entry, version: u32, flags: u32, trace: bool) -> Parsed {
-    let mut r = Reader::new(data, version, flags).with_newest_layout(NEWEST_VERSION.max(version)).with_trace(trace);
+    let mut r = Reader::new(data, version, flags)
+        .with_newest_layout(NEWEST_VERSION.max(version))
+        .with_trace(trace);
     let (kind, body) = entry.reader();
     let stopped = if version < MIN_VERSION {
-        Some(format!("container version {version:#x} predates the oldest supported format"))
+        Some(format!(
+            "container version {version:#x} predates the oldest supported format"
+        ))
     } else {
         match r.node(kind, kind, body) {
             Err(e) => {
@@ -80,5 +83,9 @@ pub fn parse(data: &[u8], entry: Entry, version: u32, flags: u32, trace: bool) -
     };
     // A failed reader leaves no fields behind, and the rewind put every byte in `rest`.
     let rest = data[r.pos()..].to_vec();
-    Parsed { root: r.finish(), rest, stopped }
+    Parsed {
+        root: r.finish(),
+        rest,
+        stopped,
+    }
 }

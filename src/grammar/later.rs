@@ -5,7 +5,7 @@
 
 use super::manual::{bar_object, instance_names};
 use super::prim::*;
-use super::readers::{bar_object_0c_16_17, style_id, tie};
+use super::readers::{music_line, style_id, tie};
 use crate::error::Result;
 use crate::reader::Reader;
 use crate::tree::Value;
@@ -166,7 +166,7 @@ pub(super) fn instrument_change_tail(r: &mut Reader) -> Result<()> {
 }
 
 /// End of a selection's record (2025.3 `0x1013621d0`).
-pub(super) fn selection_tail(r: &mut Reader) -> Result<()> {
+pub(super) fn paste_selection_tail(r: &mut Reader) -> Result<()> {
     if r.since(0x3f_0005) {
         r.u8("OriginalMiddleLinePitch")?;
     }
@@ -223,7 +223,14 @@ pub(super) fn options_tail(r: &mut Reader) -> Result<()> {
         pm_u8(r, "MediumStaveScale")?;
         pm_u8(r, "XSmallStaveScale")?;
     }
-    bools(r, &[(0x3f_0003, "ViewOptions.m_ViewReplayMarker"), (0x3f_0004, "JoinBarlinesAtEndOfSystems"), (0x3f_0006, "AutoOptimize")])?;
+    bools(
+        r,
+        &[
+            (0x3f_0003, "ViewOptions.m_ViewReplayMarker"),
+            (0x3f_0004, "JoinBarlinesAtEndOfSystems"),
+            (0x3f_0006, "AutoOptimize"),
+        ],
+    )?;
     if r.since(0x3f_000a) {
         ["TieDashLength", "TieDashGapLength", "TieDotRadius", "TieDotGapLength"]
             .into_iter()
@@ -232,7 +239,13 @@ pub(super) fn options_tail(r: &mut Reader) -> Result<()> {
     if r.since(0x3f_ffff) {
         r.u32("LvTieLength")?;
     }
-    bools(r, &[(0x40_0000, "RespaceAfterUpdatingCautionaryAccidentals"), (0x40_0001, "PanoramaViewDisablesFocusOnStaves")])?;
+    bools(
+        r,
+        &[
+            (0x40_0000, "RespaceAfterUpdatingCautionaryAccidentals"),
+            (0x40_0001, "PanoramaViewDisablesFocusOnStaves"),
+        ],
+    )?;
     if r.since(0x41_ffff) {
         pm_bool(r, "DoubleThickForCoincidentRepeats")?;
         pm_bool(r, "RepeatDotsInAllSpaces")?;
@@ -240,11 +253,14 @@ pub(super) fn options_tail(r: &mut Reader) -> Result<()> {
         r.u32("DashedBarlineGap")?;
         r.u32("DashedBarlineLength")?;
     }
-    bools(r, &[
-        (0x42_0003, "AllowHiddenNotesToUpdateAccidentals"),
-        (0x43_0003, "BarRestOrMultiRestWhenAllNotesHiddenInBar"),
-        (0x43_0006, "UseProperSlideOverBarlineCalculation"),
-    ])?;
+    bools(
+        r,
+        &[
+            (0x42_0003, "AllowHiddenNotesToUpdateAccidentals"),
+            (0x43_0003, "BarRestOrMultiRestWhenAllNotesHiddenInBar"),
+            (0x43_0006, "UseProperSlideOverBarlineCalculation"),
+        ],
+    )?;
     if r.since(0x44_0001) {
         pm_bool(r, "ShowBarRests")?;
     }
@@ -253,13 +269,15 @@ pub(super) fn options_tail(r: &mut Reader) -> Result<()> {
 
 /// Single bool fields, each added after the version it is paired with.
 fn bools(r: &mut Reader, fields: &[(u32, &'static str)]) -> Result<()> {
-    fields.iter().try_for_each(|&(v, name)| if r.since(v) { r.bool(name).map(drop) } else { Ok(()) })
+    fields
+        .iter()
+        .try_for_each(|&(v, name)| if r.since(v) { r.bool(name).map(drop) } else { Ok(()) })
 }
 
 /// A staff filter (bar object of tag 0x1c, 2025.3 `0x1013e9ab0`): a line
 /// whose span shows only some notes of a stave.
 pub(super) fn staff_filter(r: &mut Reader) -> Result<()> {
-    bar_object_0c_16_17(r)?;
+    music_line(r)?;
     r.u32("FilterID")?;
     part_map(r, "FilterInfo", filter_info)?;
     r.u32("PartID")?;
@@ -278,7 +296,9 @@ pub(super) fn staff_filter(r: &mut Reader) -> Result<()> {
 fn filter_info(r: &mut Reader) -> Result<Value> {
     r.sub("FilterInfo", |r| {
         r.u8("HiddenVoices")?;
-        ["SingleNotes", "Rests", "Player1", "Player2"].into_iter().try_for_each(|name| r.bool(name).map(drop))?;
+        ["SingleNotes", "Rests", "Player1", "Player2"]
+            .into_iter()
+            .try_for_each(|name| r.bool(name).map(drop))?;
         r.u8("NotePositionBits")?;
         r.u8("ActiveCategoryBits")?;
         r.record("record", "Record", |_| Ok(()))

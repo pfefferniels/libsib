@@ -33,7 +33,9 @@ pub enum Value {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Count {
     /// Big-endian u32 element count, multiplied by a constant on the wire.
-    U32 { scale: u32 },
+    U32 {
+        scale: u32,
+    },
     U8,
     /// No count on the wire; the length is implied by context.
     Implied,
@@ -63,7 +65,10 @@ pub struct Node {
 
 impl Node {
     pub fn new(kind: &'static str) -> Self {
-        Self { kind, fields: Vec::new() }
+        Self {
+            kind,
+            fields: Vec::new(),
+        }
     }
 
     pub fn push(&mut self, name: &'static str, value: Value) {
@@ -220,9 +225,7 @@ impl Value {
             Value::Node(node) => node.write(out),
             Value::List(list) => {
                 match list.count {
-                    Count::U32 { scale } => {
-                        out.extend_from_slice(&(scale * list.items.len() as u32).to_be_bytes())
-                    }
+                    Count::U32 { scale } => out.extend_from_slice(&(scale * list.items.len() as u32).to_be_bytes()),
                     Count::U8 => out.push(list.items.len() as u8),
                     Count::Implied => {}
                 }

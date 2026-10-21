@@ -146,11 +146,17 @@ impl Chunk {
     }
 
     pub fn child(&self, kind: ChunkKind) -> Option<&Chunk> {
-        self.entries.iter().find(|e| e.kind == kind).and_then(|e| e.chunk.as_ref())
+        self.entries
+            .iter()
+            .find(|e| e.kind == kind)
+            .and_then(|e| e.chunk.as_ref())
     }
 
     pub fn child_mut(&mut self, kind: ChunkKind) -> Option<&mut Chunk> {
-        self.entries.iter_mut().find(|e| e.kind == kind).and_then(|e| e.chunk.as_mut())
+        self.entries
+            .iter_mut()
+            .find(|e| e.kind == kind)
+            .and_then(|e| e.chunk.as_mut())
     }
 }
 
@@ -159,7 +165,10 @@ pub fn parse(file: &[u8]) -> Result<Chunk> {
     root.stamp_is_checksum = root.has_stamp() && root.stamp == byte_sum(&file[STAMP_OFFSET + 4..]);
     if end < file.len() {
         if root.payload.is_some() || !root.entries.is_empty() {
-            return Err(Error::Malformed { offset: end, message: "data after the chunk tree".into() });
+            return Err(Error::Malformed {
+                offset: end,
+                message: "data after the chunk tree".into(),
+            });
         }
         root.raw = file[end..].to_vec();
     }
@@ -209,7 +218,10 @@ impl<'a> Cursor<'a> {
 /// Parses the chunk at `offset`; also returns where the chunk and its
 /// descendants end.
 fn parse_at(file: &[u8], offset: usize) -> Result<(Chunk, usize)> {
-    let mut cur = Cursor { data: file, pos: offset };
+    let mut cur = Cursor {
+        data: file,
+        pos: offset,
+    };
     if cur.take(MAGIC.len())? != MAGIC {
         return Err(Error::BadMagic { offset });
     }
@@ -219,7 +231,9 @@ fn parse_at(file: &[u8], offset: usize) -> Result<(Chunk, usize)> {
     let compressed = flags & FLAG_COMPRESSED != 0;
     let encrypted = flags & FLAG_ENCRYPTED != 0;
     if encrypted && !compressed {
-        return Err(Error::Unsupported(format!("encrypted but uncompressed chunk at {offset:#x}")));
+        return Err(Error::Unsupported(format!(
+            "encrypted but uncompressed chunk at {offset:#x}"
+        )));
     }
     let compress_info = if compressed { cur.u32()? } else { 0 };
     let key = if encrypted {
@@ -231,7 +245,11 @@ fn parse_at(file: &[u8], offset: usize) -> Result<(Chunk, usize)> {
     let payload = if compressed {
         let (data, used) = inflate(&file[cur.pos..], key.map(|k| k.seed()), cur.pos)?;
         cur.pos += used;
-        Some(Payload { data, key, compress_info })
+        Some(Payload {
+            data,
+            key,
+            compress_info,
+        })
     } else {
         None
     };
@@ -242,10 +260,13 @@ fn parse_at(file: &[u8], offset: usize) -> Result<(Chunk, usize)> {
     let entries = slots
         .into_iter()
         .map(|(kind, child)| {
-            let chunk = (child != 0).then(|| parse_at(file, child)).transpose()?.map(|(chunk, child_end)| {
-                end = end.max(child_end);
-                chunk
-            });
+            let chunk = (child != 0)
+                .then(|| parse_at(file, child))
+                .transpose()?
+                .map(|(chunk, child_end)| {
+                    end = end.max(child_end);
+                    chunk
+                });
             Ok(Entry { kind, chunk })
         })
         .collect::<Result<Vec<_>>>()?;

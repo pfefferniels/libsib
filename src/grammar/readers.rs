@@ -23,10 +23,18 @@ pub fn score(r: &mut Reader) -> Result<()> {
     r.node("Music", "Music", music)?;
     r.record("record", "Record", |r| {
         if r.since(0x110003) {
-            r.node("DefaultPartAppearance", "DefaultPartAppearance", default_part_appearance)?;
+            r.node(
+                "DefaultPartAppearance",
+                "DefaultPartAppearance",
+                default_part_appearance,
+            )?;
         }
         if r.since(0x1a000a) {
-            r.node("PartBatchPrintSettings", "PartBatchPrintSettings", part_batch_print_settings)?;
+            r.node(
+                "PartBatchPrintSettings",
+                "PartBatchPrintSettings",
+                part_batch_print_settings,
+            )?;
         }
         if r.since(0x2d000e) {
             r.node("FileID", "FileId", file_id)?;
@@ -35,7 +43,7 @@ pub fn score(r: &mut Reader) -> Result<()> {
             r.string("SavedFilePath")?;
         }
         if r.since(0x380007) {
-            f_100d926be(r, "SavedFilePathComponents")?;
+            list_file_path_components(r, "SavedFilePathComponents")?;
         }
         Ok(())
     })?;
@@ -46,14 +54,8 @@ pub fn score(r: &mut Reader) -> Result<()> {
 /// 8.3.0 `0x100f55060`.
 pub(super) fn stave(r: &mut Reader) -> Result<()> {
     r.tag(0x04)?;
-    f_100f557ac(r)?;
-    r.list("Bars", |r| {
-        r.sub("BarsItem", |r| {
-            bar(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    stave_header(r)?;
+    r.list("Bars", |r| r.sub("Bar", bar).map(Value::Node))?;
     r.record("record", "Record", |r| {
         if r.since(0xa0008) {
             pm_bool(r, "ShowInFocusMode")?;
@@ -79,36 +81,28 @@ pub(super) fn stave(r: &mut Reader) -> Result<()> {
 
 /// 8.3.0 `0x100d9236e`.
 pub(super) fn list_graphic_data(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListGraphicDataItem", |r| {
-            graphic_cc3a(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list(name, |r| r.sub("GraphicData", graphic_data).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100fd752c`.
 pub(super) fn list_instrument_groups(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListInstrumentGroupsItem", |r| {
-            f_100f3c746(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list(name, |r| r.sub("StaveGrouping", stave_grouping).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100fdb626`.
 pub(super) fn pm_barlines(r: &mut Reader, name: &'static str) -> Result<()> {
-    part_map(r, name, |r| r.sub("ListBarlines", |r| list_barlines(r, "items")).map(Value::Node))
+    part_map(r, name, |r| {
+        r.sub("ListBarlines", |r| list_barlines(r, "items")).map(Value::Node)
+    })
 }
 
 /// 8.3.0 `0x100fda982`.
 pub(super) fn pm_brackets(r: &mut Reader, name: &'static str) -> Result<()> {
-    part_map(r, name, |r| r.sub("ListBrackets", |r| list_brackets(r, "items")).map(Value::Node))
+    part_map(r, name, |r| {
+        r.sub("ListBrackets", |r| list_brackets(r, "items")).map(Value::Node)
+    })
 }
 
 /// 8.3.0 `0x100f61006`.
@@ -121,27 +115,29 @@ pub(super) fn kontakt_custom_sounds(r: &mut Reader) -> Result<()> {
 /// 8.3.0 `0x100ed244a`.
 pub(super) fn sync_options(r: &mut Reader) -> Result<()> {
     r.tag(0x63)?;
-    f_100ed2492(r)?;
+    sync_options_body(r)?;
     Ok(())
 }
 
 /// 8.3.0 `0x100fd76db`.
 pub(super) fn pm_part_staves(r: &mut Reader, name: &'static str) -> Result<()> {
-    part_map(r, name, |r| r.sub("F100fda178", |r| f_100fda178(r, "items")).map(Value::Node))
+    part_map(r, name, |r| {
+        r.sub("ListStaveNums", |r| list_stave_nums(r, "items")).map(Value::Node)
+    })
 }
 
 /// 8.3.0 `0x10108f578`.
 pub(super) fn comment_colour_map(r: &mut Reader) -> Result<()> {
     r.tag(0x78)?;
-    f_10108f39a(r)?;
+    comment_colour_map_body(r)?;
     Ok(())
 }
 
 /// 8.3.0 `0x100a16666`.
 pub(super) fn repulser_settings(r: &mut Reader) -> Result<()> {
     r.tag(0x7a)?;
-    f_100a0dc7a(r)?;
-    f_100a166f6(r)?;
+    repulser_types(r)?;
+    repulser_type_traits(r)?;
     r.bool("bIsDodging")?;
     r.record("record", "Record", |_| Ok(()))?;
     Ok(())
@@ -155,72 +151,42 @@ pub(super) fn text_character_styles(r: &mut Reader) -> Result<()> {
 
 /// 8.3.0 `0x100fd70fa`.
 pub(super) fn list_custom_chord_names(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListCustomChordNamesItem", |r| {
-            f_100d98922(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list(name, |r| r.sub("CustomChordName", custom_chord_name).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100eeb450`.
 pub(super) fn list_smart_knob_values(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListSmartKnobValuesItem", |r| {
-            r.u8("value")?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list(name, u8)?;
     Ok(())
 }
 
 /// 8.3.0 `0x100dcd768`.
 pub(super) fn list_live_tempo_data(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListLiveTempoDataItem", |r| {
-            f_1010bacea(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list(name, |r| r.sub("LiveTempoEntry", live_tempo_entry).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100dcd7e6`.
 pub(super) fn list_live_tempo_fermata_data(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListLiveTempoFermataDataItem", |r| {
-            f_1010baff2(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list(name, |r| r.sub("LiveTempoFermata", live_tempo_fermata).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100dcd882`.
 pub(super) fn list_live_tempo_tap_points(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListLiveTempoTapPointsItem", |r| {
-            r.u16("value")?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list(name, u16)?;
     Ok(())
 }
 
 /// 8.3.0 `0x100dd7c66`.
-pub(super) fn bar_object_07(r: &mut Reader) -> Result<()> {
+pub(super) fn clef(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
-    bar_object_base(r)?;
+    item(r)?;
     if v < 0xe0000 {
-        r.node("ClefStyle", "F100fa77fa", f_100fa77fa)?;
+        r.node("ClefStyle", "ClefStyleRef", clef_style_ref)?;
     } else {
-        r.node("ClefStyle", "F100dd8004", f_100dd8004)?;
+        r.node("ClefStyle", "ClefStyleMap", clef_style_map)?;
     }
     r.u8("Flags")?;
     r.record("record", "Record", |r| {
@@ -228,7 +194,7 @@ pub(super) fn bar_object_07(r: &mut Reader) -> Result<()> {
             pm_bool(r, "Enabled")?;
         }
         if r.since(0x280003) {
-            r.node("TransposingClefStyle", "F100dd8004", f_100dd8004)?;
+            r.node("TransposingClefStyle", "ClefStyleMap", clef_style_map)?;
         }
         Ok(())
     })?;
@@ -236,17 +202,17 @@ pub(super) fn bar_object_07(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100dff154`.
-pub(super) fn bar_object_08(r: &mut Reader) -> Result<()> {
-    bar_object_base(r)?;
-    f_100fb4506(r)?;
+pub(super) fn special_barline(r: &mut Reader) -> Result<()> {
+    item(r)?;
+    multiple_stave_item(r)?;
     r.u8("BarlineType")?;
     r.record("record", "Record", |_| Ok(()))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100efbdf6`.
-pub(super) fn bar_object_09(r: &mut Reader) -> Result<()> {
-    bar_object_base(r)?;
+pub(super) fn time_signature(r: &mut Reader) -> Result<()> {
+    item(r)?;
     r.u8("Top")?;
     r.u8("LogUnitLength")?;
     r.i16("BeatGroups")?;
@@ -255,7 +221,7 @@ pub(super) fn bar_object_09(r: &mut Reader) -> Result<()> {
     r.u8("Flags")?;
     r.record("record", "Record", |r| {
         if r.since(0x80020) {
-            f_100df0824(r)?;
+            beam_groups(r)?;
         }
         Ok(())
     })?;
@@ -263,8 +229,8 @@ pub(super) fn bar_object_09(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100fae31e`.
-pub(super) fn bar_object_0a(r: &mut Reader) -> Result<()> {
-    bar_object_base(r)?;
+pub(super) fn key_signature(r: &mut Reader) -> Result<()> {
+    item(r)?;
     r.i8("Sharps")?;
     r.u8("Flags")?;
     r.record("record", "Record", |r| {
@@ -284,9 +250,9 @@ pub(super) fn bar_object_0a(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100f4c106`.
-pub(super) fn bar_object_0c_16_17(r: &mut Reader) -> Result<()> {
+pub(super) fn music_line(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
-    bar_object_base(r)?;
+    item(r)?;
     r.u32("Duration")?;
     if v < 0x1e0000 {
         pm_u16(r, "RhDx")?;
@@ -298,7 +264,7 @@ pub(super) fn bar_object_0c_16_17(r: &mut Reader) -> Result<()> {
     } else {
         pm_u32(r, "RhDy")?;
     }
-    r.node("LineStyle", "F100fa7a6a", f_100fa7a6a)?;
+    r.node("LineStyle", "LineStyleRef", line_style_ref)?;
     r.record("record", "Record", |r| {
         if r.since(0x5ffff) {
             pm_point(r, "value")?;
@@ -316,15 +282,15 @@ pub(super) fn bar_object_0c_16_17(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100dd4fce`.
-pub(super) fn bar_object_0d(r: &mut Reader) -> Result<()> {
-    bar_object_0c_16_17(r)?;
+pub(super) fn arpeggio_line(r: &mut Reader) -> Result<()> {
+    music_line(r)?;
     r.record("record", "Record", |_| Ok(()))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100da52a2`.
-pub(super) fn bar_object_0e_0f(r: &mut Reader) -> Result<()> {
-    bar_object_0c_16_17(r)?;
+pub(super) fn hairpin(r: &mut Reader) -> Result<()> {
+    music_line(r)?;
     r.u8("FinalVolume")?;
     r.record("record", "Record", |r| {
         if r.since(0x50002) {
@@ -346,9 +312,9 @@ pub(super) fn bar_object_0e_0f(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100dd188a`.
-pub(super) fn bar_object_10(r: &mut Reader) -> Result<()> {
+pub(super) fn glissando_line(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
-    bar_object_0c_16_17(r)?;
+    music_line(r)?;
     if v > 0x30009 {
         r.node("Type", "GlissType", gliss_type)?;
         r.node("InstrumentType", "GlissType", gliss_type)?;
@@ -359,22 +325,22 @@ pub(super) fn bar_object_10(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100f08c30`.
-pub(super) fn bar_object_11(r: &mut Reader) -> Result<()> {
-    bar_object_0c_16_17(r)?;
+pub(super) fn octava_line(r: &mut Reader) -> Result<()> {
+    music_line(r)?;
     r.record("record", "Record", |_| Ok(()))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100ed3e90`.
-pub(super) fn bar_object_12(r: &mut Reader) -> Result<()> {
-    bar_object_0c_16_17(r)?;
+pub(super) fn pedal_line(r: &mut Reader) -> Result<()> {
+    music_line(r)?;
     r.record("record", "Record", |_| Ok(()))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100fa0ea0`.
-pub(super) fn bar_object_13(r: &mut Reader) -> Result<()> {
-    f_100f6b138(r)?;
+pub(super) fn repeat_time_line(r: &mut Reader) -> Result<()> {
+    system_line(r)?;
     r.record("record", "Record", |r| {
         if r.since(0x80015) {
             r.bool("IsLastTimeEnding")?;
@@ -385,15 +351,15 @@ pub(super) fn bar_object_13(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100e872a8`.
-pub(super) fn bar_object_14(r: &mut Reader) -> Result<()> {
-    bar_object_0c_16_17(r)?;
+pub(super) fn slur(r: &mut Reader) -> Result<()> {
+    music_line(r)?;
     curve_line(r)?;
     Ok(())
 }
 
 /// 8.3.0 `0x100f47dd4`.
-pub(super) fn bar_object_15(r: &mut Reader) -> Result<()> {
-    bar_object_0c_16_17(r)?;
+pub(super) fn trill(r: &mut Reader) -> Result<()> {
+    music_line(r)?;
     r.i8("DeltaQuarterTones")?;
     r.i16("TrillsPerSecond")?;
     r.record("record", "Record", |r| {
@@ -415,8 +381,8 @@ pub(super) fn bar_object_15(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100f2cfcc`.
-pub(super) fn bar_object_18(r: &mut Reader) -> Result<()> {
-    bar_object_0c_16_17(r)?;
+pub(super) fn tuplet(r: &mut Reader) -> Result<()> {
+    music_line(r)?;
     r.node("TextRef", "StyledString", styled_string)?;
     r.u16("Unit")?;
     r.u8("Left")?;
@@ -433,8 +399,8 @@ pub(super) fn bar_object_18(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100fc3584`.
-pub(super) fn bar_object_19(r: &mut Reader) -> Result<()> {
-    bar_object_0c_16_17(r)?;
+pub(super) fn lyric_item(r: &mut Reader) -> Result<()> {
+    music_line(r)?;
     r.node("Text", "StyledString", styled_string)?;
     r.u8("SyllableType")?;
     r.u32("NumNotes")?;
@@ -443,15 +409,15 @@ pub(super) fn bar_object_19(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100da0a02`.
-pub(super) fn bar_object_1a(r: &mut Reader) -> Result<()> {
-    bar_object_0c_16_17(r)?;
+pub(super) fn highlight(r: &mut Reader) -> Result<()> {
+    music_line(r)?;
     r.record("record", "Record", |_| Ok(()))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100e06ac8`.
-pub(super) fn bar_object_1b(r: &mut Reader) -> Result<()> {
-    f_100f6b138(r)?;
+pub(super) fn ritard_line(r: &mut Reader) -> Result<()> {
+    system_line(r)?;
     r.bool("IsRitard")?;
     let using_percent = r.bool("UsingPercent")?;
     if !using_percent {
@@ -459,15 +425,15 @@ pub(super) fn bar_object_1b(r: &mut Reader) -> Result<()> {
     } else {
         r.i32("FinalTempoPercent")?;
     }
-    r.node("Curve", "Curve698d", curve_698d)?;
+    r.node("Curve", "Curve", curve)?;
     r.record("record", "Record", |_| Ok(()))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100ecd044`.
-pub(super) fn bar_object_1f(r: &mut Reader) -> Result<()> {
-    bar_object_base(r)?;
-    r.node("Symbol", "Symbol", symbol)?;
+pub(super) fn symbol_item(r: &mut Reader) -> Result<()> {
+    item(r)?;
+    r.node("Symbol", "SymbolIndex", symbol_index)?;
     r.u8("Size")?;
     r.record("record", "Record", |r| {
         if r.since(0x1b001b) {
@@ -489,9 +455,9 @@ pub(super) fn bar_object_1f(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100f51372`.
-pub(super) fn bar_object_21(r: &mut Reader) -> Result<()> {
-    bar_object_22(r)?;
-    f_100fb4506(r)?;
+pub(super) fn system_text_item(r: &mut Reader) -> Result<()> {
+    text_item(r)?;
+    multiple_stave_item(r)?;
     r.record("record", "Record", |r| {
         if r.since(0x80018) {
             r.bool("RepeatTextBindsToBarEnd")?;
@@ -502,8 +468,8 @@ pub(super) fn bar_object_21(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100ed8b82`.
-pub(super) fn bar_object_22(r: &mut Reader) -> Result<()> {
-    bar_object_base(r)?;
+pub(super) fn text_item(r: &mut Reader) -> Result<()> {
+    item(r)?;
     r.node("StyledString", "StyledString", styled_string)?;
     r.bool("DrawAtStartOfSystem")?;
     r.record("record", "Record", |r| {
@@ -517,8 +483,8 @@ pub(super) fn bar_object_22(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100ddb4a4`.
-pub(super) fn bar_object_23(r: &mut Reader) -> Result<()> {
-    bar_object_base(r)?;
+pub(super) fn bar_number(r: &mut Reader) -> Result<()> {
+    item(r)?;
     r.u16("Number")?;
     r.bool("Shown")?;
     r.record("record", "Record", |r| {
@@ -535,8 +501,8 @@ pub(super) fn bar_object_23(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100f3b1bc`.
-pub(super) fn bar_object_25(r: &mut Reader) -> Result<()> {
-    bar_object_base(r)?;
+pub(super) fn transposition(r: &mut Reader) -> Result<()> {
+    item(r)?;
     r.u16("PartDiat")?;
     r.u16("PartChrom2")?;
     r.u16("ScoreDiat")?;
@@ -557,9 +523,9 @@ pub(super) fn bar_object_25(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100effef8`.
-pub(super) fn bar_object_26(r: &mut Reader) -> Result<()> {
-    bar_object_base(r)?;
-    f_100fb4506(r)?;
+pub(super) fn rehearsal_mark(r: &mut Reader) -> Result<()> {
+    item(r)?;
+    multiple_stave_item(r)?;
     r.u32("Mark")?;
     r.bool("Consecutive")?;
     r.record("record", "Record", |r| {
@@ -577,14 +543,14 @@ pub(super) fn bar_object_26(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x101041774`.
-pub(super) fn bar_object_27(r: &mut Reader) -> Result<()> {
+pub(super) fn instrument_change(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
-    bar_object_base(r)?;
+    item(r)?;
     if v < 0x260000 {
         if v < 0xe0000 {
-            r.node("StaveType", "F100fa7c28", f_100fa7c28)?;
+            r.node("StaveType", "StaveTypeRef", stave_type_ref)?;
         } else {
-            r.node("StaveType", "F101041ca4", f_101041ca4)?;
+            r.node("StaveType", "StaveTypeMap", stave_type_map)?;
         }
     }
     r.record("record", "Record", |r| {
@@ -593,16 +559,16 @@ pub(super) fn bar_object_27(r: &mut Reader) -> Result<()> {
         }
         if r.file_version < 0x2d0000 {
             if r.since(0x23ffff) {
-                r.node("InstrumentInstance", "F100fa4a02", f_100fa4a02)?;
+                r.node("InstrumentInstance", "InstrumentInstanceRef", instrument_instance_ref)?;
             }
         } else {
-            r.node("Instance", "Instance", instance)?;
+            r.node("Instance", "InstrumentInstance", instrument_instance)?;
         }
         if r.since(0x240001) {
             pm_styled_string(r, "InstrumentText")?;
             pm_u32(r, "InstrumentTextDx")?;
             pm_u32(r, "InstrumentTextDy")?;
-            r.node("InstrumentTextVisibility", "F10104b1a5", f_10104b1a5)?;
+            r.node("InstrumentTextVisibility", "Visibility", visibility)?;
         }
         instrument_change_tail(r)?;
         Ok(())
@@ -611,9 +577,9 @@ pub(super) fn bar_object_27(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100f146be`.
-pub(super) fn bar_object_28(r: &mut Reader) -> Result<()> {
+pub(super) fn bar_rest(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
-    bar_object_base(r)?;
+    item(r)?;
     r.i16("Symbol")?;
     r.u16("Duration")?;
     if v < 0xb0000 {
@@ -633,16 +599,16 @@ pub(super) fn bar_object_28(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100eab40a`.
-pub(super) fn bar_object_29(r: &mut Reader) -> Result<()> {
+pub(super) fn note_rest(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
-    bar_object_base(r)?;
+    item(r)?;
     r.u8("Durn")?;
     r.u8("Trem")?;
     if v < 0xb0000 {
         r.u8("Flags")?;
     }
     r.i16("Artic")?;
-    f_100ee0c8e(r)?;
+    chord_notes(r)?;
     r.record("record", "Record", |r| {
         if r.since(0x3000f) {
             if r.file_version < 0xb0000 {
@@ -693,7 +659,7 @@ pub(super) fn bar_object_29(r: &mut Reader) -> Result<()> {
             if r.file_version < 0x350000 {
                 r.bool("ArpeggioHidden")?;
             } else {
-                r.node("ArpeggioVisibility", "F10104b1a5", f_10104b1a5)?;
+                r.node("ArpeggioVisibility", "Visibility", visibility)?;
             }
             pm_u32(r, "ArpeggioTopDy")?;
             pm_u32(r, "ArpeggioBottomDy")?;
@@ -726,7 +692,7 @@ pub(super) fn bar_object_29(r: &mut Reader) -> Result<()> {
             pm_u32(r, "ArpeggioDx")?;
         }
         if r.since(0x360014) {
-            pm_f_100eb87e1(r, "ArticRepulsionState")?;
+            pm_artic_repulsion_state(r, "ArticRepulsionState")?;
         }
         if r.since(0x3d0001) {
             r.u32("ArhythmicNotePlaybackMode")?;
@@ -737,9 +703,9 @@ pub(super) fn bar_object_29(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100d98f18`.
-pub(super) fn bar_object_2a(r: &mut Reader) -> Result<()> {
-    bar_object_base(r)?;
-    f_100fa4d2c(r)?;
+pub(super) fn graphic(r: &mut Reader) -> Result<()> {
+    item(r)?;
+    graphic_data_ref(r)?;
     pm_f32(r, "XScale")?;
     pm_f32(r, "YScale")?;
     r.record("record", "Record", |r| {
@@ -769,9 +735,9 @@ pub(super) fn bar_object_2a(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100f13666`.
-pub(super) fn bar_object_2b(r: &mut Reader) -> Result<()> {
-    bar_object_1f(r)?;
-    f_100fb4506(r)?;
+pub(super) fn system_symbol_item(r: &mut Reader) -> Result<()> {
+    symbol_item(r)?;
+    multiple_stave_item(r)?;
     r.record("record", "Record", |r| {
         if r.since(0x390016) {
             pm_bool(r, "DrawOnAllStaves")?;
@@ -782,15 +748,15 @@ pub(super) fn bar_object_2b(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x10108a66e`.
-pub(super) fn bar_object_2c(r: &mut Reader) -> Result<()> {
-    bar_object_22(r)?;
-    f_10108a828(r)?;
+pub(super) fn comment_item(r: &mut Reader) -> Result<()> {
+    text_item(r)?;
+    comment_item_body(r)?;
     Ok(())
 }
 
 /// 8.3.0 `0x1010eb0d4`.
-pub(super) fn bar_object_2d(r: &mut Reader) -> Result<()> {
-    bar_object_base(r)?;
+pub(super) fn player_change(r: &mut Reader) -> Result<()> {
+    item(r)?;
     r.record("record", "Record", |r| {
         if r.since(0xdffff) {
             pm_bool(r, "Enabled")?;
@@ -799,11 +765,11 @@ pub(super) fn bar_object_2d(r: &mut Reader) -> Result<()> {
             pm_styled_string(r, "PlayerTextTop")?;
             pm_u32(r, "PlayerTextDxTop")?;
             pm_u32(r, "PlayerTextDyTop")?;
-            r.node("PlayerTextVisibilityTop", "F10104b1a5", f_10104b1a5)?;
+            r.node("PlayerTextVisibilityTop", "Visibility", visibility)?;
             pm_styled_string(r, "PlayerTextBottom")?;
             pm_u32(r, "PlayerTextDxBottom")?;
             pm_u32(r, "PlayerTextDyBottom")?;
-            r.node("PlayerTextVisibilityBottom", "F10104b1a5", f_10104b1a5)?;
+            r.node("PlayerTextVisibilityBottom", "Visibility", visibility)?;
         }
         Ok(())
     })?;
@@ -811,7 +777,7 @@ pub(super) fn bar_object_2d(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100f9a9e6`.
-pub(super) fn bar_object_base(r: &mut Reader) -> Result<()> {
+pub(super) fn item(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     r.u16("Sr")?;
     if v < 0x1e0000 {
@@ -836,7 +802,7 @@ pub(super) fn bar_object_base(r: &mut Reader) -> Result<()> {
             r.u8("PlayTimes")?;
         }
         if r.since(0xaffff) {
-            f_10104b084(r)?;
+            visibility_body(r)?;
         }
         if r.since(0x1b001b) {
             pm_bool(r, "CueSize")?;
@@ -853,14 +819,10 @@ pub(super) fn bar_object_base(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x101039b36`.
-pub(super) fn bar_object_93(r: &mut Reader) -> Result<()> {
-    bar_object_base(r)?;
+pub(super) fn annotation_item(r: &mut Reader) -> Result<()> {
+    item(r)?;
     r.list("Strokes", |r| {
-        r.sub("StrokesItem", |r| {
-            f_1010398fe(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
+        r.sub("AnnotationStroke", annotation_stroke).map(Value::Node)
     })?;
     Ok(())
 }
@@ -884,7 +846,7 @@ pub(super) fn keyword_base(r: &mut Reader) -> Result<()> {
 /// 8.3.0 `0x1010e7014`.
 pub(super) fn swing_settings(r: &mut Reader) -> Result<()> {
     r.tag(0x8c)?;
-    f_1010e5668(r)?;
+    swing_settings_body(r)?;
     Ok(())
 }
 
@@ -953,13 +915,7 @@ pub(super) fn tie(r: &mut Reader) -> Result<()> {
 
 /// 8.3.0 `0x100e93841`.
 pub(super) fn list_mid_points(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListMidPointsItem", |r| {
-            f_100e116e0(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list(name, |r| r.sub("SlurMidPoint", slur_mid_point).map(Value::Node))?;
     Ok(())
 }
 
@@ -970,46 +926,34 @@ pub(super) fn pm_bezier_point(r: &mut Reader, name: &'static str) -> Result<()> 
 
 /// 8.3.0 `0x100de929a`.
 pub(super) fn list_frame_string_notes(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListFrameStringNotesItem", |r| {
-            f_100de7d34(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list(name, |r| r.sub("FrameStringNote", frame_string_note).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100dbe709`.
 pub(super) fn list_chord_elements(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListChordElementsItem", |r| {
-            f_100de8414(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list(name, |r| r.sub("ChordElement", chord_element).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x1010bc56e`.
 pub(super) fn guitar_frame_overrides(r: &mut Reader) -> Result<()> {
     r.tag(0x81)?;
-    f_1010bc2d8(r)?;
+    guitar_frame_overrides_body(r)?;
     Ok(())
 }
 
 /// 8.3.0 `0x1010bf5ac`.
 pub(super) fn guitar_frame_text(r: &mut Reader) -> Result<()> {
     r.tag(0x82)?;
-    f_1010bf3ee(r)?;
+    guitar_frame_text_body(r)?;
     Ok(())
 }
 
 /// 8.3.0 `0x1010c593a`.
 pub(super) fn guitar_frame_text_formatting(r: &mut Reader) -> Result<()> {
     r.tag(0x83)?;
-    f_1010c5756(r)?;
+    guitar_frame_text_formatting_body(r)?;
     Ok(())
 }
 
@@ -1022,11 +966,7 @@ pub fn version_info(r: &mut Reader) -> Result<()> {
     r.list("NumCommentThreads", |r| {
         r.sub("NumCommentThreadsItem", |r| {
             r.list("NumCommentsInThread", |r| {
-                r.sub("NumCommentsInThreadItem", |r| {
-                    f_101198d12(r)?;
-                    Ok(())
-                })
-                .map(Value::Node)
+                r.sub("VersionedScoreComment", versioned_score_comment).map(Value::Node)
             })?;
             Ok(())
         })
@@ -1074,11 +1014,7 @@ pub fn idea_info(r: &mut Reader) -> Result<()> {
 /// 8.3.0 `0x100fd7194`.
 pub(super) fn list_instrument_instances(r: &mut Reader) -> Result<()> {
     r.list("items", |r| {
-        r.sub("ItemsItem", |r| {
-            instance(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
+        r.sub("InstrumentInstance", instrument_instance).map(Value::Node)
     })?;
     Ok(())
 }
@@ -1094,32 +1030,20 @@ pub(super) fn range_description(r: &mut Reader) -> Result<()> {
     r.u32("VerticalRange")?;
     r.u32("HorizontalRange")?;
     r.u32("SafeLength")?;
-    r.list("StaveNumbers", |r| {
-        r.sub("StaveNumbersItem", |r| {
-            r.u32("value")?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list("StaveNumbers", u32)?;
     Ok(())
 }
 
 /// 8.3.0 `0x100ff2fbc`.
 pub(super) fn clipboard_context(r: &mut Reader) -> Result<()> {
     r.tag(0x6b)?;
-    r.list("StaveContexts", |r| {
-        r.sub("StaveContextsItem", |r| {
-            f_100ff3b70(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list("StaveContexts", |r| r.sub("StaveStart", stave_start).map(Value::Node))?;
     r.record("record", "Record", |_| Ok(()))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100fe99ea`.
-pub(super) fn selection(r: &mut Reader) -> Result<()> {
+pub(super) fn paste_selection(r: &mut Reader) -> Result<()> {
     r.tag(0x47)?;
     r.u32("BarStart")?;
     r.u16("BarLength")?;
@@ -1133,10 +1057,10 @@ pub(super) fn selection(r: &mut Reader) -> Result<()> {
     r.u8("LogUnitLength")?;
     r.i16("BeatGroups")?;
     r.u8("InTuplet")?;
-    r.node("Item", "Item", item)?;
+    r.node("Item", "PasteItem", paste_item)?;
     r.record("record", "Record", |r| {
         if r.since(0x90003) {
-            f_100df0824(r)?;
+            beam_groups(r)?;
         }
         if r.since(0xa0003) {
             r.u32("OriginalStaveNum")?;
@@ -1145,15 +1069,9 @@ pub(super) fn selection(r: &mut Reader) -> Result<()> {
         if r.since(0x2d0009) {
             r.bool("OnBlankPage")?;
         }
-        selection_tail(r)?;
+        paste_selection_tail(r)?;
         Ok(())
     })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x1010180a1`.
-pub(super) fn f_1010180a1(r: &mut Reader) -> Result<()> {
-    list_graphic_data(r, "GraphicDataList")?;
     Ok(())
 }
 
@@ -1178,7 +1096,7 @@ pub(super) fn bar_spacing(r: &mut Reader) -> Result<()> {
     if v < 0xb0000 {
         r.u8("DrawFlags")?;
     }
-    pm_list_part_map_default(r, "Spacings")?;
+    pm_list_spacings(r, "Spacings")?;
     pm_u16(r, "NumBarRestExcepItems")?;
     r.record("record", "Record", |r| {
         if r.since(0x3000b) {
@@ -1237,7 +1155,9 @@ pub(super) fn bar_spacing(r: &mut Reader) -> Result<()> {
 
 /// 8.3.0 `0x100e934fa`.
 pub(super) fn pm_mid_points(r: &mut Reader, name: &'static str) -> Result<()> {
-    part_map(r, name, |r| r.sub("ListMidPoints", |r| list_mid_points(r, "items")).map(Value::Node))
+    part_map(r, name, |r| {
+        r.sub("ListMidPoints", |r| list_mid_points(r, "items")).map(Value::Node)
+    })
 }
 
 /// 8.3.0 `0x101131e76`.
@@ -1369,7 +1289,7 @@ pub(super) fn score_options(r: &mut Reader) -> Result<()> {
             r.bool("ShowIdeasFromThisScoreOnly")?;
         }
         if r.since(0x260001) {
-            pm_f_101193236(r, "InitialPageNumberChange")?;
+            pm_page_number_change(r, "InitialPageNumberChange")?;
         }
         if r.since(0x280001) {
             pm_bool(r, "UseScoreOtherPageNumberChangesInParts")?;
@@ -1415,18 +1335,15 @@ pub(super) fn score_options(r: &mut Reader) -> Result<()> {
 
 /// 8.3.0 `0x101162a48`.
 pub(super) fn pm_part_batch_print_settings(r: &mut Reader, name: &'static str) -> Result<()> {
-    part_map(r, name, |r| r.sub("PartBatchPrintSettings", part_batch_print_settings).map(Value::Node))
+    part_map(r, name, |r| {
+        r.sub("PartBatchPrintSettings", part_batch_print_settings)
+            .map(Value::Node)
+    })
 }
 
 /// 8.3.0 `0x100d926be`.
-pub(super) fn f_100d926be(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("F100d926beItem", |r| {
-            r.string("value")?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+pub(super) fn list_file_path_components(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, string)?;
     Ok(())
 }
 
@@ -1495,7 +1412,11 @@ pub(super) fn default_part_appearance(r: &mut Reader) -> Result<()> {
         }
         if r.since(0x210004) {
             r.bool("UseScoreTitlePagesInPart")?;
-            r.node("ScoreSpecialPageBreaksInPart", "ScoreSpecialPageBreaksInPart", score_special_page_breaks_in_part)?;
+            r.node(
+                "ScoreSpecialPageBreaksInPart",
+                "ScoreSpecialPageBreaksInPart",
+                score_special_page_breaks_in_part,
+            )?;
         }
         if r.since(0x280001) {
             r.u32("FirstPageNumber")?;
@@ -1519,29 +1440,17 @@ pub(super) fn file_id(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100f557ac`.
-pub(super) fn f_100f557ac(r: &mut Reader) -> Result<()> {
+pub(super) fn stave_header(r: &mut Reader) -> Result<()> {
     pm_bool(r, "Small")?;
-    r.node("MIDIData", "MididataE36a", mididata_e36a)?;
+    r.node("MIDIData", "StaveMidiData", stave_midi_data)?;
     pm_bool(r, "TopOfSection")?;
     Ok(())
 }
 
-/// 8.3.0 `0x1010dcc3a`.
-pub(super) fn graphic_cc3a(r: &mut Reader) -> Result<()> {
-    graphic(r)?;
-    Ok(())
-}
-
 /// 8.3.0 `0x100f3c746`.
-pub(super) fn f_100f3c746(r: &mut Reader) -> Result<()> {
+pub(super) fn stave_grouping(r: &mut Reader) -> Result<()> {
     r.any_tag()?;
-    r.list("Staves", |r| {
-        r.sub("StavesItem", |r| {
-            f_100fa6f66(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list("Staves", |r| r.sub("StaveNum", stave_num).map(Value::Node))?;
     r.record("record", "Record", |r| {
         if r.since(0x3d0006) {
             r.u32("Condensing")?;
@@ -1556,30 +1465,18 @@ pub(super) fn f_100f3c746(r: &mut Reader) -> Result<()> {
 
 /// 8.3.0 `0x100fd75b1`.
 pub(super) fn list_barlines(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListBarlinesItem", |r| {
-            f_100f3c746(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list(name, |r| r.sub("StaveGrouping", stave_grouping).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100fd7641`.
 pub(super) fn list_brackets(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListBracketsItem", |r| {
-            f_100debf42(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list(name, |r| r.sub("Bracket", bracket).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100ed2492`.
-pub(super) fn f_100ed2492(r: &mut Reader) -> Result<()> {
+pub(super) fn sync_options_body(r: &mut Reader) -> Result<()> {
     r.string("VideoFileName")?;
     r.node("HitPoints", "HitPoints", hit_points)?;
     r.record("record", "Record", |r| {
@@ -1608,19 +1505,13 @@ pub(super) fn f_100ed2492(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100fda178`.
-pub(super) fn f_100fda178(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("F100fda178Item", |r| {
-            r.u32("value")?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+pub(super) fn list_stave_nums(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, u32)?;
     Ok(())
 }
 
 /// 8.3.0 `0x10108f39a`.
-pub(super) fn f_10108f39a(r: &mut Reader) -> Result<()> {
+pub(super) fn comment_colour_map_body(r: &mut Reader) -> Result<()> {
     r.list("NumMappings", |r| {
         r.sub("NumMappingsItem", |r| {
             r.string("UserName")?;
@@ -1634,13 +1525,13 @@ pub(super) fn f_10108f39a(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100a0dc7a`.
-pub(super) fn f_100a0dc7a(r: &mut Reader) -> Result<()> {
+pub(super) fn repulser_types(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
-    f_100a16e70(r, "XTypes")?;
-    f_100a16e70(r, "YTypes")?;
+    list_type_names(r, "XTypes")?;
+    list_type_names(r, "YTypes")?;
     if v > 0x2fffff {
         r.record("record", "Record", |r| {
-            f_100a16e70(r, "KnownTypes")?;
+            list_type_names(r, "KnownTypes")?;
             Ok(())
         })?;
     }
@@ -1648,8 +1539,8 @@ pub(super) fn f_100a0dc7a(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100a166f6`.
-pub(super) fn f_100a166f6(r: &mut Reader) -> Result<()> {
-    f_100a16e70(r, "Types")?;
+pub(super) fn repulser_type_traits(r: &mut Reader) -> Result<()> {
+    list_type_names(r, "Types")?;
     list_traits(r, "Traits")?;
     Ok(())
 }
@@ -1662,17 +1553,14 @@ pub(super) fn list_text_character_styles(r: &mut Reader, name: &'static str) -> 
         return Ok(());
     }
     r.list(name, |r| {
-        r.sub("ListTextCharacterStylesItem", |r| {
-            f_1010da9fe(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
+        r.sub("MusicTextCharacterStyle", music_text_character_style)
+            .map(Value::Node)
     })?;
     Ok(())
 }
 
 /// 8.3.0 `0x100d98922`.
-pub(super) fn f_100d98922(r: &mut Reader) -> Result<()> {
+pub(super) fn custom_chord_name(r: &mut Reader) -> Result<()> {
     r.tag(0x60)?;
     r.u32("Type")?;
     r.string("Name")?;
@@ -1680,7 +1568,7 @@ pub(super) fn f_100d98922(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x1010bacea`.
-pub(super) fn f_1010bacea(r: &mut Reader) -> Result<()> {
+pub(super) fn live_tempo_entry(r: &mut Reader) -> Result<()> {
     r.tag(0x80)?;
     r.u16("Sr")?;
     r.u16("Duration")?;
@@ -1691,7 +1579,7 @@ pub(super) fn f_1010bacea(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x1010baff2`.
-pub(super) fn f_1010baff2(r: &mut Reader) -> Result<()> {
+pub(super) fn live_tempo_fermata(r: &mut Reader) -> Result<()> {
     r.tag(0x85)?;
     r.u16("ScorePositionSr")?;
     r.u64("PauseFraction")?;
@@ -1707,7 +1595,7 @@ pub(super) fn f_1010baff2(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100fa77fa`.
-pub(super) fn f_100fa77fa(r: &mut Reader) -> Result<()> {
+pub(super) fn clef_style_ref(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     if v < 0x100000 {
         old_clef_style_ref(r)?;
@@ -1718,7 +1606,7 @@ pub(super) fn f_100fa77fa(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100dd8004`.
-pub(super) fn f_100dd8004(r: &mut Reader) -> Result<()> {
+pub(super) fn clef_style_map(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     if v < 0x100000 {
         if !r.string_refs {
@@ -1733,14 +1621,14 @@ pub(super) fn f_100dd8004(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100fb4506`.
-pub(super) fn f_100fb4506(r: &mut Reader) -> Result<()> {
-    f_100f6d77a(r, "YPositions")?;
+pub(super) fn multiple_stave_item(r: &mut Reader) -> Result<()> {
+    list_y_positions(r, "YPositions")?;
     r.record("record", "Record", |_| Ok(()))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100df0824`.
-pub(super) fn f_100df0824(r: &mut Reader) -> Result<()> {
+pub(super) fn beam_groups(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     r.string("QuaverGroups")?;
     r.string("SemiQuaverGroups")?;
@@ -1754,9 +1642,9 @@ pub(super) fn f_100df0824(r: &mut Reader) -> Result<()> {
     r.bool("SeparateTupletsFromAdjacentNotes")?;
     r.u32("TimeSigTop")?;
     r.u32("TimeSigBottom")?;
-    f_100df35ce(r, "QuaverBeamEventList")?;
-    f_100df35ce(r, "SemiQuaverBeamEventList")?;
-    f_100df35ce(r, "DemiSemiQuaverBeamEventList")?;
+    list_beam_events(r, "QuaverBeamEventList")?;
+    list_beam_events(r, "SemiQuaverBeamEventList")?;
+    list_beam_events(r, "DemiSemiQuaverBeamEventList")?;
     r.u16("SrAfterEndOfBar")?;
     r.record("record", "Record", |r| {
         if r.since(0x90000) && r.file_version < 0x2d0019 {
@@ -1769,10 +1657,10 @@ pub(super) fn f_100df0824(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100fa7a6a`.
-pub(super) fn f_100fa7a6a(r: &mut Reader) -> Result<()> {
+pub(super) fn line_style_ref(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     if v < 0x100000 {
-        old_style_ref_828c(r)?;
+        old_line_style_ref(r)?;
     } else {
         style_id(r)?;
     }
@@ -1785,21 +1673,21 @@ pub(super) fn gliss_type(r: &mut Reader) -> Result<()> {
     Ok(())
 }
 
-/// 8.3.0 `0x100dd173d`.
+/// 8.3.0 `0x100dd173d`, `0x100e0698d`.
 pub(super) fn curve(r: &mut Reader) -> Result<()> {
     r.string("value")?;
     Ok(())
 }
 
 /// 8.3.0 `0x100f6b138`.
-pub(super) fn f_100f6b138(r: &mut Reader) -> Result<()> {
+pub(super) fn system_line(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
-    bar_object_0c_16_17(r)?;
-    f_100fb4506(r)?;
+    music_line(r)?;
+    multiple_stave_item(r)?;
     if v < 0x390000 {
-        pm_f_100f6d77a(r, "RhYPositions")?;
+        pm_list_y_positions(r, "RhYPositions")?;
     } else {
-        f_100f6d77a(r, "RhYPositions")?;
+        list_y_positions(r, "RhYPositions")?;
     }
     r.record("record", "Record", |_| Ok(()))?;
     Ok(())
@@ -1809,7 +1697,7 @@ pub(super) fn f_100f6b138(r: &mut Reader) -> Result<()> {
 pub(super) fn styled_string(r: &mut Reader) -> Result<()> {
     r.tag(0x20)?;
     r.string("Text")?;
-    r.node("TextStyle", "F100fa75d2", f_100fa75d2)?;
+    r.node("TextStyle", "TextStyleRef", text_style_ref)?;
     r.record("record", "Record", |r| {
         if r.since(0x2d001b) {
             r.u32("FixedWidth")?;
@@ -1837,34 +1725,28 @@ pub(super) fn styled_string(r: &mut Reader) -> Result<()> {
     Ok(())
 }
 
-/// 8.3.0 `0x100e0698d`.
-pub(super) fn curve_698d(r: &mut Reader) -> Result<()> {
-    r.string("value")?;
-    Ok(())
-}
-
 /// 8.3.0 `0x100e5a589`.
-pub(super) fn symbol(r: &mut Reader) -> Result<()> {
+pub(super) fn symbol_index(r: &mut Reader) -> Result<()> {
     r.i16("value")?;
     Ok(())
 }
 
-/// 8.3.0 `0x100fa7c28`.
-pub(super) fn f_100fa7c28(r: &mut Reader) -> Result<()> {
+/// 8.3.0 `0x100fa75d2`.
+pub(super) fn text_style_ref(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
-    if v < 0x150000 {
-        old_style_ref_804a(r)?;
+    if v < 0x100000 {
+        old_text_style_ref(r)?;
     } else {
         style_id(r)?;
     }
     Ok(())
 }
 
-/// 8.3.0 `0x100fa75d2`.
-pub(super) fn f_100fa75d2(r: &mut Reader) -> Result<()> {
+/// 8.3.0 `0x100fa7c28`.
+pub(super) fn stave_type_ref(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
-    if v < 0x100000 {
-        old_text_style_ref(r)?;
+    if v < 0x150000 {
+        old_stave_type_ref(r)?;
     } else {
         style_id(r)?;
     }
@@ -1877,7 +1759,7 @@ pub(super) fn pm_styled_string(r: &mut Reader, name: &'static str) -> Result<()>
 }
 
 /// 8.3.0 `0x101041ca4`.
-pub(super) fn f_101041ca4(r: &mut Reader) -> Result<()> {
+pub(super) fn stave_type_map(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     if v < 0x150000 {
         if !r.string_refs {
@@ -1892,20 +1774,20 @@ pub(super) fn f_101041ca4(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100fa4a02`.
-pub(super) fn f_100fa4a02(r: &mut Reader) -> Result<()> {
+pub(super) fn instrument_instance_ref(r: &mut Reader) -> Result<()> {
     style_id(r)?;
     Ok(())
 }
 
 /// 8.3.0 `0x10104b1a5`.
-pub(super) fn f_10104b1a5(r: &mut Reader) -> Result<()> {
+pub(super) fn visibility(r: &mut Reader) -> Result<()> {
     r.tag(0x70)?;
-    f_10104b084(r)?;
+    visibility_body(r)?;
     Ok(())
 }
 
 /// 8.3.0 `0x100ee0c8e`.
-pub(super) fn f_100ee0c8e(r: &mut Reader) -> Result<()> {
+pub(super) fn chord_notes(r: &mut Reader) -> Result<()> {
     r.list("Notes", |r| {
         r.sub("NotesItem", |r| {
             r.tag(0x4b)?;
@@ -1920,28 +1802,26 @@ pub(super) fn f_100ee0c8e(r: &mut Reader) -> Result<()> {
 /// 8.3.0 `0x100eb9d0a`.
 pub(super) fn list_individual_artic_dys(r: &mut Reader, name: &'static str) -> Result<()> {
     r.list(name, |r| {
-        r.sub("ListIndividualArticDysItem", |r| {
-            f_100eb8756(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
+        r.sub("IndividualArticDy", individual_artic_dy).map(Value::Node)
     })?;
     Ok(())
 }
 
 /// 8.3.0 `0x100eb9db0`.
-pub(super) fn pm_f_100eb87e1(r: &mut Reader, name: &'static str) -> Result<()> {
-    part_map(r, name, |r| r.sub("F100eb87e1", f_100eb87e1).map(Value::Node))
+pub(super) fn pm_artic_repulsion_state(r: &mut Reader, name: &'static str) -> Result<()> {
+    part_map(r, name, |r| {
+        r.sub("ArticRepulsionState", artic_repulsion_state).map(Value::Node)
+    })
 }
 
 /// 8.3.0 `0x100fa4d2c`.
-pub(super) fn f_100fa4d2c(r: &mut Reader) -> Result<()> {
+pub(super) fn graphic_data_ref(r: &mut Reader) -> Result<()> {
     r.i32("GraphicData")?;
     Ok(())
 }
 
 /// 8.3.0 `0x10108a828`.
-pub(super) fn f_10108a828(r: &mut Reader) -> Result<()> {
+pub(super) fn comment_item_body(r: &mut Reader) -> Result<()> {
     r.u64("Date")?;
     r.string("UserName")?;
     r.record("record", "Record", |r| {
@@ -1954,27 +1834,23 @@ pub(super) fn f_10108a828(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x10104b084`.
-pub(super) fn f_10104b084(r: &mut Reader) -> Result<()> {
+pub(super) fn visibility_body(r: &mut Reader) -> Result<()> {
     r.bool("HideInScore")?;
     pm_bool(r, "HideInPart")?;
     Ok(())
 }
 
 /// 8.3.0 `0x1010398fe`.
-pub(super) fn f_1010398fe(r: &mut Reader) -> Result<()> {
+pub(super) fn annotation_stroke(r: &mut Reader) -> Result<()> {
     r.tag(0x94)?;
     r.list("Points", |r| {
-        r.sub("PointsItem", |r| {
-            f_1010396cc(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
+        r.sub("AnnotationPoint", annotation_point).map(Value::Node)
     })?;
     Ok(())
 }
 
 /// 8.3.0 `0x1010e5668`.
-pub(super) fn f_1010e5668(r: &mut Reader) -> Result<()> {
+pub(super) fn swing_settings_body(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     r.u32("SwingType")?;
     r.node("LegacySwingStyle", "StyleId", style_id)?;
@@ -1997,7 +1873,7 @@ pub(super) fn f_1010e5668(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100e116e0`.
-pub(super) fn f_100e116e0(r: &mut Reader) -> Result<()> {
+pub(super) fn slur_mid_point(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     r.tag(0x44)?;
     if v < 0x180000 {
@@ -2027,7 +1903,7 @@ pub(super) fn bezier_point(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100de7d34`.
-pub(super) fn f_100de7d34(r: &mut Reader) -> Result<()> {
+pub(super) fn frame_string_note(r: &mut Reader) -> Result<()> {
     r.tag(0x79)?;
     r.u8("Pitch")?;
     r.u32("Symbol")?;
@@ -2037,18 +1913,22 @@ pub(super) fn f_100de7d34(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100de8414`.
-pub(super) fn f_100de8414(r: &mut Reader) -> Result<()> {
+pub(super) fn chord_element(r: &mut Reader) -> Result<()> {
     r.tag(0x5a)?;
-    chord_element(r)?;
+    chord_element_body(r)?;
     Ok(())
 }
 
 /// 8.3.0 `0x1010bc2d8`.
-pub(super) fn f_1010bc2d8(r: &mut Reader) -> Result<()> {
+pub(super) fn guitar_frame_overrides_body(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     r.tag(0x81)?;
     r.node("ChordSuffixOverrides", "SuffixSettings", suffix_settings)?;
-    r.node("ChordSuffixExtensionArrangement", "ChordSuffixExtensionArrangement", chord_suffix_extension_arrangement)?;
+    r.node(
+        "ChordSuffixExtensionArrangement",
+        "ChordSuffixExtensionArrangement",
+        chord_suffix_extension_arrangement,
+    )?;
     if v > 0x320001 {
         r.u32("ChordRootAccidentalPosition")?;
     }
@@ -2065,7 +1945,7 @@ pub(super) fn f_1010bc2d8(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x1010bf3ee`.
-pub(super) fn f_1010bf3ee(r: &mut Reader) -> Result<()> {
+pub(super) fn guitar_frame_text_body(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     r.tag(0x82)?;
     r.string("Text")?;
@@ -2078,7 +1958,7 @@ pub(super) fn f_1010bf3ee(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x1010c5756`.
-pub(super) fn f_1010c5756(r: &mut Reader) -> Result<()> {
+pub(super) fn guitar_frame_text_formatting_body(r: &mut Reader) -> Result<()> {
     r.tag(0x83)?;
     pm_u32(r, "Size")?;
     pm_u32(r, "Bold")?;
@@ -2089,7 +1969,7 @@ pub(super) fn f_1010c5756(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x101198d12`.
-pub(super) fn f_101198d12(r: &mut Reader) -> Result<()> {
+pub(super) fn versioned_score_comment(r: &mut Reader) -> Result<()> {
     r.tag(0x77)?;
     r.string("Comment")?;
     r.u64("TimeStamp")?;
@@ -2100,21 +1980,15 @@ pub(super) fn f_101198d12(r: &mut Reader) -> Result<()> {
 
 /// 8.3.0 `0x10117b059`.
 pub(super) fn list_keywords(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListKeywordsItem", |r| {
-            r.string("value")?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list(name, string)?;
     Ok(())
 }
 
 /// 8.3.0 `0x100ff3b70`.
-pub(super) fn f_100ff3b70(r: &mut Reader) -> Result<()> {
+pub(super) fn stave_start(r: &mut Reader) -> Result<()> {
     r.tag(0x6c)?;
     r.string("InstrumentShortName")?;
-    r.node("ClefStyleAtStart", "F100fa77fa", f_100fa77fa)?;
+    r.node("ClefStyleAtStart", "ClefStyleRef", clef_style_ref)?;
     r.node("KeySignatureAtStart", "BarObject", bar_object)?;
     r.node("TimeSignatureAtStart", "BarObject", bar_object)?;
     r.record("record", "Record", |r| {
@@ -2123,24 +1997,24 @@ pub(super) fn f_100ff3b70(r: &mut Reader) -> Result<()> {
         }
         if r.since(0x210005) {
             if r.file_version < 0x2a0000 {
-                r.node("Instrument", "F100fa793c", f_100fa793c)?;
+                r.node("Instrument", "InstrumentRef", instrument_ref)?;
             } else if r.since(0x29ffff) {
                 if r.file_version < 0x2d0000 {
-                    r.node("InstrumentInstance", "F100fa4a02", f_100fa4a02)?;
+                    r.node("InstrumentInstance", "InstrumentInstanceRef", instrument_instance_ref)?;
                 } else {
-                    r.node("InstrumentInstance", "Instance", instance)?;
+                    r.node("InstrumentInstance", "InstrumentInstance", instrument_instance)?;
                 }
             } else {
-                r.node("InstrumentInstance", "Instance", instance)?;
+                r.node("InstrumentInstance", "InstrumentInstance", instrument_instance)?;
             }
         } else if r.since(0x29ffff) {
             if r.file_version < 0x2d0000 {
-                r.node("InstrumentInstance", "F100fa4a02", f_100fa4a02)?;
+                r.node("InstrumentInstance", "InstrumentInstanceRef", instrument_instance_ref)?;
             } else {
-                r.node("InstrumentInstance", "Instance", instance)?;
+                r.node("InstrumentInstance", "InstrumentInstance", instrument_instance)?;
             }
         } else {
-            r.node("InstrumentInstance", "Instance", instance)?;
+            r.node("InstrumentInstance", "InstrumentInstance", instrument_instance)?;
         }
         stave_start_tail(r)?;
         Ok(())
@@ -2151,19 +2025,15 @@ pub(super) fn f_100ff3b70(r: &mut Reader) -> Result<()> {
 /// 8.3.0 `0x100da7f74`.
 pub(super) fn fragment_list(r: &mut Reader) -> Result<()> {
     r.tag(0x59)?;
-    r.list("Masks", |r| {
-        r.sub("MasksItem", |r| {
-            r.i32("value")?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list("Masks", i32)?;
     Ok(())
 }
 
 /// 8.3.0 `0x100f29145`.
-pub(super) fn pm_list_part_map_default(r: &mut Reader, name: &'static str) -> Result<()> {
-    part_map(r, name, |r| r.sub("ListPartMapDefault", |r| list_part_map_default(r, "items")).map(Value::Node))
+pub(super) fn pm_list_spacings(r: &mut Reader, name: &'static str) -> Result<()> {
+    part_map(r, name, |r| {
+        r.sub("ListSpacings", |r| list_spacings(r, "items")).map(Value::Node)
+    })
 }
 
 /// 8.3.0 `0x101018f66`.
@@ -2174,7 +2044,7 @@ pub(super) fn special_page_break_data(r: &mut Reader) -> Result<()> {
     }
     r.record("record", "Record", |r| {
         if r.since(0x200000) {
-            pm_list_part_map_default_36dc(r, "ItemPageOffsetData")?;
+            pm_list_page_offset_pairs(r, "ItemPageOffsetData")?;
             pm_u32(r, "BlankPageTypeData")?;
             pm_u32(r, "NumBlankPages")?;
         }
@@ -2184,13 +2054,13 @@ pub(super) fn special_page_break_data(r: &mut Reader) -> Result<()> {
         }
         if r.since(0x210000) {
             pm_bool(r, "HasMarginModifier")?;
-            pm_f_1010199af(r, "MarginModifier")?;
+            pm_margin_modifier(r, "MarginModifier")?;
         }
         if r.since(0x220000) {
-            pm_f_1010199af(r, "MarginModifierPreFirstPage")?;
+            pm_margin_modifier(r, "MarginModifierPreFirstPage")?;
         }
         if r.since(0x260000) {
-            pm_list_part_map_default_24b6(r, "PageNumberChangeData")?;
+            pm_list_page_number_changes(r, "PageNumberChangeData")?;
         }
         Ok(())
     })?;
@@ -2198,19 +2068,16 @@ pub(super) fn special_page_break_data(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x10114293a`.
-pub(super) fn pm_f_101193236(r: &mut Reader, name: &'static str) -> Result<()> {
-    part_map(r, name, |r| r.sub("F101193236", f_101193236).map(Value::Node))
+pub(super) fn pm_page_number_change(r: &mut Reader, name: &'static str) -> Result<()> {
+    part_map(r, name, |r| {
+        r.sub("PageNumberChange", page_number_change).map(Value::Node)
+    })
 }
 
-/// 8.3.0 `0x100fd7229`.
-pub(super) fn list_midiconnections(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListMidiconnectionsItem", |r| {
-            f_100f997b8(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+/// 8.3.0 `0x100ef1539`.
+pub(super) fn summary(r: &mut Reader) -> Result<()> {
+    r.tag(0x3f)?;
+    summary_body(r)?;
     Ok(())
 }
 
@@ -2220,26 +2087,10 @@ pub(super) fn stave_types(r: &mut Reader) -> Result<()> {
     Ok(())
 }
 
-/// 8.3.0 `0x100fd73cb`.
-pub(super) fn f_100fd73cb(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("F100fd73cbItem", |r| {
-            r.u32("value")?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
-    Ok(())
-}
-
 /// 8.3.0 `0x100fd6d6b`.
 pub(super) fn list_line_playback_style_list(r: &mut Reader, name: &'static str) -> Result<()> {
     r.list(name, |r| {
-        r.sub("ListLinePlaybackStyleListItem", |r| {
-            f_10104dda3(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
+        r.sub("LinePlaybackStyle", line_playback_style).map(Value::Node)
     })?;
     Ok(())
 }
@@ -2247,117 +2098,48 @@ pub(super) fn list_line_playback_style_list(r: &mut Reader, name: &'static str) 
 /// 8.3.0 `0x100fdc0e0`.
 pub(super) fn list_swing_styles(r: &mut Reader, name: &'static str) -> Result<()> {
     r.list(name, |r| {
-        r.sub("ListSwingStylesItem", |r| {
-            f_1010e8278(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
+        r.sub("LegacySwingPattern", legacy_swing_pattern).map(Value::Node)
     })?;
     Ok(())
 }
 
-/// 8.3.0 `0x101003a9c`.
-pub(super) fn instrument_types(r: &mut Reader) -> Result<()> {
-    list_instrument_list(r, "InstrumentList")?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100ef1539`.
-pub(super) fn summary(r: &mut Reader) -> Result<()> {
-    r.tag(0x3f)?;
-    f_100eedb54(r)?;
-    Ok(())
-}
-
-/// 8.3.0 `0x101002cac`.
-pub(super) fn clef_styles(r: &mut Reader) -> Result<()> {
-    list_clef_styles(r, "ClefStyles")?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100fd72a5`.
-pub(super) fn f_100fd72a5(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("F100fd72a5Item", |r| {
-            r.string("value")?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x1010021ba`.
-pub(super) fn text_styles(r: &mut Reader) -> Result<()> {
-    list_text_styles(r, "TextStyles")?;
-    Ok(())
-}
-
-/// 8.3.0 `0x101002b30`.
-pub(super) fn pen_styles(r: &mut Reader) -> Result<()> {
-    list_pen_styles(r, "PenStyles")?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100fd6e51`.
-pub(super) fn list_articulation_playback_style_list(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListArticulationPlaybackStyleListItem", |r| {
-            f_1010533f7(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100e24f62`.
-pub(super) fn options(r: &mut Reader) -> Result<()> {
-    r.tag(0x3e)?;
-    options_body(r)?;
+/// 8.3.0 `0x100fd73cb`.
+pub(super) fn list_style_nums(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, u32)?;
     Ok(())
 }
 
 /// 8.3.0 `0x100f0aa7c`.
 pub(super) fn playing_options(r: &mut Reader) -> Result<()> {
     r.tag(0x41)?;
-    f_100f09a16(r)?;
+    playing_options_body(r)?;
     Ok(())
 }
 
 /// 8.3.0 `0x100fd732c`.
 pub(super) fn list_deleted_line_pb_styles(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListDeletedLinePbStylesItem", |r| {
-            style_id(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list(name, |r| r.sub("StyleId", style_id).map(Value::Node))?;
     Ok(())
 }
 
-/// 8.3.0 `0x100fd6f2d`.
-pub(super) fn list_notehead_playback_style_list(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListNoteheadPlaybackStyleListItem", |r| {
-            f_10104f731(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+/// 8.3.0 `0x100fd74a7`.
+pub(super) fn list_bar_spacings(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("BarSpacing", bar_spacing).map(Value::Node))?;
     Ok(())
 }
 
-/// 8.3.0 `0x100fd742b`.
-pub(super) fn list_symbol_categories(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListSymbolCategoriesItem", |r| {
-            f_100f37244(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+/// 8.3.0 `0x100fa8e64`.
+pub(super) fn system_stave(r: &mut Reader) -> Result<()> {
+    r.tag(0x03)?;
+    r.node("MIDIData", "SystemStaveMidiData", system_stave_midi_data)?;
+    r.list("Bars", |r| r.sub("Bar", bar).map(Value::Node))?;
+    r.record("record", "Record", |_| Ok(()))?;
+    Ok(())
+}
+
+/// 8.3.0 `0x101003a9c`.
+pub(super) fn instrument_types(r: &mut Reader) -> Result<()> {
+    list_instrument_list(r, "InstrumentList")?;
     Ok(())
 }
 
@@ -2372,6 +2154,14 @@ pub(super) fn indexed_note_styles(r: &mut Reader) -> Result<()> {
     Ok(())
 }
 
+/// 8.3.0 `0x100fd7009`.
+pub(super) fn list_symbol_playback_style_list(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| {
+        r.sub("SymbolPlaybackStyle", symbol_playback_style).map(Value::Node)
+    })?;
+    Ok(())
+}
+
 /// 8.3.0 `0x101003c2a`.
 pub(super) fn ensembles(r: &mut Reader) -> Result<()> {
     list_ensemble_list(r, "EnsembleList")?;
@@ -2381,7 +2171,28 @@ pub(super) fn ensembles(r: &mut Reader) -> Result<()> {
 /// 8.3.0 `0x100ef982a`.
 pub(super) fn spacing_table(r: &mut Reader) -> Result<()> {
     r.tag(0x58)?;
-    f_100ef299e(r)?;
+    spacing_table_body(r)?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100fd6f2d`.
+pub(super) fn list_notehead_playback_style_list(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| {
+        r.sub("NoteheadPlaybackStyle", notehead_playback_style).map(Value::Node)
+    })?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100fd72a5`.
+pub(super) fn list_keyword_names(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, string)?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100e24f62`.
+pub(super) fn options(r: &mut Reader) -> Result<()> {
+    r.tag(0x3e)?;
+    options_body(r)?;
     Ok(())
 }
 
@@ -2396,48 +2207,48 @@ pub(super) fn indexed_symbols(r: &mut Reader) -> Result<()> {
     Ok(())
 }
 
-/// 8.3.0 `0x100fd7009`.
-pub(super) fn list_symbol_playback_style_list(r: &mut Reader, name: &'static str) -> Result<()> {
+/// 8.3.0 `0x100fd742b`.
+pub(super) fn list_symbol_categories(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("SymbolCategory", symbol_category).map(Value::Node))?;
+    Ok(())
+}
+
+/// 8.3.0 `0x101002cac`.
+pub(super) fn clef_styles(r: &mut Reader) -> Result<()> {
+    list_clef_styles(r, "ClefStyles")?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100fd7229`.
+pub(super) fn list_midiconnections(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("MidiConnection", midi_connection).map(Value::Node))?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100fd6e51`.
+pub(super) fn list_articulation_playback_style_list(r: &mut Reader, name: &'static str) -> Result<()> {
     r.list(name, |r| {
-        r.sub("ListSymbolPlaybackStyleListItem", |r| {
-            f_10105257d(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
+        r.sub("ArticulationPlaybackStyle", articulation_playback_style)
+            .map(Value::Node)
     })?;
+    Ok(())
+}
+
+/// 8.3.0 `0x101002b30`.
+pub(super) fn pen_styles(r: &mut Reader) -> Result<()> {
+    list_pen_styles(r, "PenStyles")?;
+    Ok(())
+}
+
+/// 8.3.0 `0x1010021ba`.
+pub(super) fn text_styles(r: &mut Reader) -> Result<()> {
+    list_text_styles(r, "TextStyles")?;
     Ok(())
 }
 
 /// 8.3.0 `0x101002e10`.
 pub(super) fn line_styles(r: &mut Reader) -> Result<()> {
     list_line_styles(r, "LineStyles")?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100fd74a7`.
-pub(super) fn list_bar_spacings(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListBarSpacingsItem", |r| {
-            bar_spacing(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100fa8e64`.
-pub(super) fn system_stave(r: &mut Reader) -> Result<()> {
-    r.tag(0x03)?;
-    r.node("MIDIData", "Mididata", mididata)?;
-    r.list("Bars", |r| {
-        r.sub("BarsItem", |r| {
-            bar(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
-    r.record("record", "Record", |_| Ok(()))?;
     Ok(())
 }
 
@@ -2472,22 +2283,22 @@ pub(super) fn score_special_page_breaks_in_part(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100f3e36a`.
-pub(super) fn mididata_e36a(r: &mut Reader) -> Result<()> {
+pub(super) fn stave_midi_data(r: &mut Reader) -> Result<()> {
     r.tag(0x3b)?;
-    f_100f3e2aa(r)?;
+    stave_midi_data_body(r)?;
     r.record("record", "Record", |_| Ok(()))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100fa6f66`.
-pub(super) fn f_100fa6f66(r: &mut Reader) -> Result<()> {
+pub(super) fn stave_num(r: &mut Reader) -> Result<()> {
     r.u32("value")?;
     Ok(())
 }
 
 /// 8.3.0 `0x100debf42`.
-pub(super) fn f_100debf42(r: &mut Reader) -> Result<()> {
-    f_100f3c746(r)?;
+pub(super) fn bracket(r: &mut Reader) -> Result<()> {
+    stave_grouping(r)?;
     r.u8("BracketType")?;
     r.record("record", "Record", |_| Ok(()))?;
     Ok(())
@@ -2496,39 +2307,27 @@ pub(super) fn f_100debf42(r: &mut Reader) -> Result<()> {
 /// 8.3.0 `0x100e1335f`.
 pub(super) fn hit_points(r: &mut Reader) -> Result<()> {
     r.tag(0x64)?;
-    f_100e133a8(r)?;
+    hit_points_body(r)?;
     Ok(())
 }
 
 /// 8.3.0 `0x100a16e70`.
-pub(super) fn f_100a16e70(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("F100a16e70Item", |r| {
-            r.string("value")?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+pub(super) fn list_type_names(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, string)?;
     Ok(())
 }
 
 /// 8.3.0 `0x100a16ff1`.
 pub(super) fn list_traits(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListTraitsItem", |r| {
-            f_100a0cf26(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list(name, |r| r.sub("RepulserTrait", repulser_trait).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x1010da9fe`.
-pub(super) fn f_1010da9fe(r: &mut Reader) -> Result<()> {
+pub(super) fn music_text_character_style(r: &mut Reader) -> Result<()> {
     r.tag(0x89)?;
     style_header(r)?;
-    f_1010d9754(r)?;
+    font(r)?;
     r.record("record", "Record", |_| Ok(()))?;
     Ok(())
 }
@@ -2549,31 +2348,19 @@ pub(super) fn pm_style_id(r: &mut Reader, name: &'static str) -> Result<()> {
 }
 
 /// 8.3.0 `0x100f6d77a`.
-pub(super) fn f_100f6d77a(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("F100f6d77aItem", |r| {
-            f_100f539f0(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+pub(super) fn list_y_positions(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("YPosition", y_position).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100df35ce`.
-pub(super) fn f_100df35ce(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("F100df35ceItem", |r| {
-            f_100f3fb74(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+pub(super) fn list_beam_events(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("BeamEvent", beam_event).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100fa828c`.
-pub(super) fn old_style_ref_828c(r: &mut Reader) -> Result<()> {
+pub(super) fn old_line_style_ref(r: &mut Reader) -> Result<()> {
     if !r.string_refs {
         r.u8("value")?;
     } else {
@@ -2583,18 +2370,11 @@ pub(super) fn old_style_ref_828c(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100f6d80a`.
-pub(super) fn pm_f_100f6d77a(r: &mut Reader, name: &'static str) -> Result<()> {
-    part_map(r, name, |r| r.sub("F100f6d77a", |r| f_100f6d77a(r, "items")).map(Value::Node))
-}
-
-/// 8.3.0 `0x100fa804a`.
-pub(super) fn old_style_ref_804a(r: &mut Reader) -> Result<()> {
-    if !r.string_refs {
-        r.u32("value")?;
-    } else {
-        r.string("value")?;
-    }
-    Ok(())
+pub(super) fn pm_list_y_positions(r: &mut Reader, name: &'static str) -> Result<()> {
+    part_map(r, name, |r| {
+        r.sub("ListYPositions", |r| list_y_positions(r, "items"))
+            .map(Value::Node)
+    })
 }
 
 /// 8.3.0 `0x100fa858e`.
@@ -2607,22 +2387,32 @@ pub(super) fn old_text_style_ref(r: &mut Reader) -> Result<()> {
     Ok(())
 }
 
+/// 8.3.0 `0x100fa804a`.
+pub(super) fn old_stave_type_ref(r: &mut Reader) -> Result<()> {
+    if !r.string_refs {
+        r.u32("value")?;
+    } else {
+        r.string("value")?;
+    }
+    Ok(())
+}
+
 /// 8.3.0 `0x100eb8756`.
-pub(super) fn f_100eb8756(r: &mut Reader) -> Result<()> {
+pub(super) fn individual_artic_dy(r: &mut Reader) -> Result<()> {
     r.i16("Artic")?;
     pm_i8(r, "Dy")?;
     Ok(())
 }
 
 /// 8.3.0 `0x100eb87e1`.
-pub(super) fn f_100eb87e1(r: &mut Reader) -> Result<()> {
+pub(super) fn artic_repulsion_state(r: &mut Reader) -> Result<()> {
     r.i16("First")?;
     r.i16("Second")?;
     Ok(())
 }
 
 /// 8.3.0 `0x1010396cc`.
-pub(super) fn f_1010396cc(r: &mut Reader) -> Result<()> {
+pub(super) fn annotation_point(r: &mut Reader) -> Result<()> {
     r.tag(0x95)?;
     r.u32("X")?;
     r.u32("Y")?;
@@ -2650,7 +2440,7 @@ pub(super) fn order_of_alterations(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100fa793c`.
-pub(super) fn f_100fa793c(r: &mut Reader) -> Result<()> {
+pub(super) fn instrument_ref(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     if v > 0xfffff {
         style_id(r)?;
@@ -2659,34 +2449,34 @@ pub(super) fn f_100fa793c(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100f293e6`.
-pub(super) fn list_part_map_default(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListPartMapDefaultItem", |r| {
-            spacing(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+pub(super) fn list_spacings(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("Spacing", spacing).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x1010236dc`.
-pub(super) fn pm_list_part_map_default_36dc(r: &mut Reader, name: &'static str) -> Result<()> {
-    part_map(r, name, |r| r.sub("ListPartMapDefault9861", |r| list_part_map_default_9861(r, "items")).map(Value::Node))
+pub(super) fn pm_list_page_offset_pairs(r: &mut Reader, name: &'static str) -> Result<()> {
+    part_map(r, name, |r| {
+        r.sub("ListPageOffsetPairs", |r| list_page_offset_pairs(r, "items"))
+            .map(Value::Node)
+    })
 }
 
 /// 8.3.0 `0x101022eec`.
-pub(super) fn pm_f_1010199af(r: &mut Reader, name: &'static str) -> Result<()> {
-    part_map(r, name, |r| r.sub("F1010199af", f_1010199af).map(Value::Node))
+pub(super) fn pm_margin_modifier(r: &mut Reader, name: &'static str) -> Result<()> {
+    part_map(r, name, |r| r.sub("MarginModifier", margin_modifier).map(Value::Node))
 }
 
 /// 8.3.0 `0x1010224b6`.
-pub(super) fn pm_list_part_map_default_24b6(r: &mut Reader, name: &'static str) -> Result<()> {
-    part_map(r, name, |r| r.sub("ListPartMapDefault2750", |r| list_part_map_default_2750(r, "items")).map(Value::Node))
+pub(super) fn pm_list_page_number_changes(r: &mut Reader, name: &'static str) -> Result<()> {
+    part_map(r, name, |r| {
+        r.sub("ListPageNumberChanges", |r| list_page_number_changes(r, "items"))
+            .map(Value::Node)
+    })
 }
 
 /// 8.3.0 `0x101193236`.
-pub(super) fn f_101193236(r: &mut Reader) -> Result<()> {
+pub(super) fn page_number_change(r: &mut Reader) -> Result<()> {
     r.tag(0x71)?;
     r.record("record", "Record", |r| {
         r.u32("PageNumber")?;
@@ -2701,74 +2491,8 @@ pub(super) fn f_101193236(r: &mut Reader) -> Result<()> {
     Ok(())
 }
 
-/// 8.3.0 `0x100f997b8`.
-pub(super) fn f_100f997b8(r: &mut Reader) -> Result<()> {
-    r.tag(0x4e)?;
-    r.string("Name")?;
-    r.string("Model")?;
-    r.string("DeviceTypeName")?;
-    r.string("EquipmentName")?;
-    r.record("record", "Record", |_| Ok(()))?;
-    Ok(())
-}
-
-/// 8.3.0 `0x10100dd2e`.
-pub(super) fn list_stave_types(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListStaveTypesItem", |r| {
-            f_100f44324(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x10104dda3`.
-pub(super) fn f_10104dda3(r: &mut Reader) -> Result<()> {
-    r.any_tag()?;
-    f_10104ddea(r)?;
-    Ok(())
-}
-
-/// 8.3.0 `0x1010e8278`.
-pub(super) fn f_1010e8278(r: &mut Reader) -> Result<()> {
-    let v = r.file_version;
-    r.tag(0x5d)?;
-    style_header(r)?;
-    if v < 0x100000 {
-        r.u32("PresetType")?;
-    }
-    r.bool("SwingAsShorthand")?;
-    r.u32("BeatUnit")?;
-    r.u16("BeatDuration")?;
-    r.i32("NumBeats")?;
-    r.node("Offsets", "Offsets", offsets)?;
-    r.node("Durations", "Offsets", offsets)?;
-    r.node("Stresses", "Offsets", offsets)?;
-    r.record("record", "Record", |_| Ok(()))?;
-    Ok(())
-}
-
-/// 8.3.0 `0x1010084ec`.
-pub(super) fn list_instrument_list(r: &mut Reader, name: &'static str) -> Result<()> {
-    if r.file_version <= 0xfffff {
-        // the count is stored without items
-        r.u32(name)?;
-        return Ok(());
-    }
-    r.list(name, |r| {
-        r.sub("ListInstrumentListItem", |r| {
-            f_100f73b5e(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
-    Ok(())
-}
-
 /// 8.3.0 `0x100eedb54`.
-pub(super) fn f_100eedb54(r: &mut Reader) -> Result<()> {
+pub(super) fn summary_body(r: &mut Reader) -> Result<()> {
     pm_string(r, "Title")?;
     pm_string(r, "Composer")?;
     pm_string(r, "Arranger")?;
@@ -2865,46 +2589,354 @@ pub(super) fn f_100eedb54(r: &mut Reader) -> Result<()> {
     Ok(())
 }
 
-/// 8.3.0 `0x101013186`.
-pub(super) fn list_clef_styles(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListClefStylesItem", |r| {
-            f_100deb984(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+/// 8.3.0 `0x10100dd2e`.
+pub(super) fn list_stave_types(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("StaveType", stave_type).map(Value::Node))?;
     Ok(())
 }
 
-/// 8.3.0 `0x1010149a4`.
-pub(super) fn list_text_styles(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListTextStylesItem", |r| {
-            f_100ec03bc(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x10100f9e2`.
-pub(super) fn list_pen_styles(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListPenStylesItem", |r| {
-            pen_style(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x1010533f7`.
-pub(super) fn f_1010533f7(r: &mut Reader) -> Result<()> {
+/// 8.3.0 `0x10104dda3`.
+pub(super) fn line_playback_style(r: &mut Reader) -> Result<()> {
     r.any_tag()?;
-    f_10105343e(r)?;
+    line_playback_style_body(r)?;
+    Ok(())
+}
+
+/// 8.3.0 `0x1010e8278`.
+pub(super) fn legacy_swing_pattern(r: &mut Reader) -> Result<()> {
+    let v = r.file_version;
+    r.tag(0x5d)?;
+    style_header(r)?;
+    if v < 0x100000 {
+        r.u32("PresetType")?;
+    }
+    r.bool("SwingAsShorthand")?;
+    r.u32("BeatUnit")?;
+    r.u16("BeatDuration")?;
+    r.i32("NumBeats")?;
+    r.node("Offsets", "Offsets", offsets)?;
+    r.node("Durations", "Offsets", offsets)?;
+    r.node("Stresses", "Offsets", offsets)?;
+    r.record("record", "Record", |_| Ok(()))?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100f09a16`.
+pub(super) fn playing_options_body(r: &mut Reader) -> Result<()> {
+    let v = r.file_version;
+    r.f32("DefaultVoiceVolume")?;
+    r.u8("TremoloNoteLength")?;
+    r.u8("SlurNoteLength")?;
+    r.u8("NormalNoteLength")?;
+    r.f32("ArpeggiateTime")?;
+    r.u8("Espressivo")?;
+    r.bool("RandomVolumes")?;
+    r.bool("AccentBeams")?;
+    r.f32("GraceNoteDurationPerSu")?;
+    if v < 0x3d0000 {
+        if v < 0x100000 {
+            r.u16("Swing")?;
+        } else {
+            r.node("Swing", "StyleId", style_id)?;
+        }
+    } else {
+        r.node("SwingPattern", "SwingPattern", swing_pattern)?;
+    }
+    list_articulations(r, "Articulations")?;
+    r.bool("SendReverbData")?;
+    r.u8("AverageReverb")?;
+    r.bool("SendPanData")?;
+    r.record("record", "Record", |r| {
+        if r.since(0x20007) {
+            r.f32("MinTremoloTime")?;
+            r.bool("SendDetuneData")?;
+            if r.since(0x30001) {
+                r.bool("PlayRepeats")?;
+                r.bool("ShortenDotted")?;
+                r.bool("ResetControllers")?;
+                r.bool("SendBankChangesMSB")?;
+                r.bool("SendBankChangesLSB")?;
+                r.bool("SendProgramChanges")?;
+                r.bool("SwingAsShorthand")?;
+            }
+            if r.since(0x50005) {
+                r.i32("SoloState")?;
+                r.u32("SoloedStave")?;
+                r.u32("FirstStaveOnMixer")?;
+            }
+            if r.since(0x60001) {
+                r.u32("RubatoLevel")?;
+            }
+            if r.since(0x60005) {
+                r.f32("MaxLengthAdjustment")?;
+            }
+            if r.since(0x80011) {
+                r.bool("DynamicsAffectAdjacentStaves")?;
+                r.u32("SpacesForMultistaveDynamics")?;
+            }
+            if r.since(0x80013) {
+                r.bool("LiveMode")?;
+            }
+            if r.since(0x8001b) {
+                r.u32("FineLengthInBeats")?;
+            }
+            if r.since(0xa001b) {
+                r.bool("TiesBetweenVoices")?;
+            }
+            if r.since(0x230000) {
+                r.string("ConfigurationName")?;
+            }
+            if r.since(0x280007) {
+                r.f32("DefaultVoiceAttack")?;
+            }
+            if r.since(0x2a0002) {
+                r.bool("ConvertLiveVelocitiesToDynamics")?;
+            }
+            if r.since(0x2c0001) {
+                r.bool("ShowGroupStripsInMixer")?;
+                r.bool("ShowStaffStripsInMixer")?;
+            }
+            if r.since(0x330008) {
+                r.bool("LiveTempoBeatInIsInBars")?;
+                r.u32("LiveTempoBeatIn")?;
+                r.bool("UseLiveTempoPlayback")?;
+                r.bool("FactoriseLiveTempoRecording")?;
+                r.f32("LiveTempoRecordingSmoothingFactor")?;
+            }
+            if r.since(0x340004) {
+                r.u32("ReverbType")?;
+                if r.file_version < 0x340007 {
+                    r.bool("UseConvolutionReverb")?;
+                    r.bool("UseConvolutionReverbInFlexiTime")?;
+                }
+                r.u8("SibeliusPlayerReverbLevel")?;
+                r.u8("SibeliusPlayerChorusLevel")?;
+            }
+            if r.since(0x340005) {
+                r.f32("MasterVolumedB")?;
+            }
+            if r.since(0x340007) {
+                r.node("PlaybackConfigParams", "PlaybackConfigParams", playback_config_params)?;
+            }
+            if r.since(0x360000) {
+                r.bool("PlayGapAfterSectionEnds")?;
+            }
+            if r.since(0x360003) {
+                r.bool("PlayRepeatsAfterDSDC")?;
+                r.bool("UseManualBarPlaySequence")?;
+                r.string("ManualBarPlaySequenceString")?;
+            }
+            if r.since(0x36001c) {
+                r.bool("MixerFadersScaleNoteVelocity")?;
+            }
+            if r.since(0x3d0000) {
+                r.node(
+                    "MeterEmphasisSettings",
+                    "MeterEmphasisSettings",
+                    meter_emphasis_settings,
+                )?;
+            }
+            if r.since(0x3d0002) {
+                r.bool("AppoggiaturasPlayOnTheBeat")?;
+            }
+            if r.since(0x3d0003) {
+                r.u32("ShortAppoggiaturaDuration_ms")?;
+            }
+            if r.since(0x3d0004) {
+                r.bool("UseNewEspressivo")?;
+                r.u32("NewEspressivoPreset")?;
+            }
+            if r.since(0x3d0005) {
+                r.node(
+                    "PlaybackNuanceSettings",
+                    "PlaybackNuanceSettings",
+                    playback_nuance_settings,
+                )?;
+            }
+            if r.since(0x3d0009) {
+                r.bool("PlayBackMordents")?;
+            }
+        }
+        playing_options_tail(r)?;
+        Ok(())
+    })?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100d8d7d8`.
+pub(super) fn system_stave_midi_data(r: &mut Reader) -> Result<()> {
+    r.tag(0x3d)?;
+    system_stave_midi_data_body(r)?;
+    Ok(())
+}
+
+/// 8.3.0 `0x1010084ec`.
+pub(super) fn list_instrument_list(r: &mut Reader, name: &'static str) -> Result<()> {
+    if r.file_version <= 0xfffff {
+        // the count is stored without items
+        r.u32(name)?;
+        return Ok(());
+    }
+    r.list(name, |r| r.sub("Instrument", instrument).map(Value::Node))?;
+    Ok(())
+}
+
+/// 8.3.0 `0x1010056ae`.
+pub(super) fn list_note_styles(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("NoteStyle", note_style).map(Value::Node))?;
+    Ok(())
+}
+
+/// 8.3.0 `0x10100689f`.
+pub(super) fn list_indexed_note_styles(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("IndexedNoteStyle", indexed_note_style).map(Value::Node))?;
+    Ok(())
+}
+
+/// 8.3.0 `0x10105257d`.
+pub(super) fn symbol_playback_style(r: &mut Reader) -> Result<()> {
+    r.any_tag()?;
+    symbol_playback_style_body(r)?;
+    Ok(())
+}
+
+/// 8.3.0 `0x101007c7c`.
+pub(super) fn list_ensemble_list(r: &mut Reader, name: &'static str) -> Result<()> {
+    if r.file_version <= 0xfffff {
+        // the count is stored without items
+        r.u32(name)?;
+        return Ok(());
+    }
+    r.list(name, |r| r.sub("Ensemble", ensemble).map(Value::Node))?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100ef299e`.
+pub(super) fn spacing_table_body(r: &mut Reader) -> Result<()> {
+    let v = r.file_version;
+    if v < 0x1e0000 {
+        pm_u16(r, "DefaultBarRestWidth")?;
+    } else {
+        pm_u32(r, "DefaultBarRestWidth")?;
+    }
+    if v < 0x1e0000 {
+        pm_u16(r, "DefaultStartOfBarGap")?;
+    } else {
+        pm_u32(r, "DefaultStartOfBarGap")?;
+    }
+    if v < 0x1e0000 {
+        pm_u16(r, "Minimum")?;
+    } else {
+        pm_u32(r, "Minimum")?;
+    }
+    if v < 0x1e0000 {
+        pm_u16(r, "Sixteenth")?;
+    } else {
+        pm_u32(r, "Sixteenth")?;
+    }
+    if v < 0x1e0000 {
+        pm_u16(r, "Eighth")?;
+    } else {
+        pm_u32(r, "Eighth")?;
+    }
+    if v < 0x1e0000 {
+        pm_u16(r, "Quarter")?;
+    } else {
+        pm_u32(r, "Quarter")?;
+    }
+    if v < 0x1e0000 {
+        pm_u16(r, "Half")?;
+    } else {
+        pm_u32(r, "Half")?;
+    }
+    if v < 0x1e0000 {
+        pm_u16(r, "Whole")?;
+    } else {
+        pm_u32(r, "Whole")?;
+    }
+    if v < 0x1e0000 {
+        pm_u16(r, "DoubleWhole")?;
+    } else {
+        pm_u32(r, "DoubleWhole")?;
+    }
+    r.record("record", "Record", |r| {
+        if r.since(0x30006) {
+            pm_bool(r, "IncludeLyrics")?;
+        }
+        if r.since(0xa0004) {
+            if r.file_version < 0x1e0000 {
+                pm_u16(r, "HookWidth")?;
+            } else {
+                pm_u32(r, "HookWidth")?;
+            }
+        }
+        if r.since(0xa0008) {
+            if r.file_version < 0x1e0000 {
+                pm_u16(r, "MinSpaceAroundNote")?;
+            } else {
+                pm_u32(r, "MinSpaceAroundNote")?;
+            }
+            if r.file_version < 0x1e0000 {
+                pm_u16(r, "MinSpaceBeforeAccidental")?;
+            } else {
+                pm_u32(r, "MinSpaceBeforeAccidental")?;
+            }
+            if r.file_version < 0x1e0000 {
+                pm_u16(r, "MinSpaceAroundLegerLine")?;
+            } else {
+                pm_u32(r, "MinSpaceAroundLegerLine")?;
+            }
+            if r.file_version < 0x1e0000 {
+                pm_u16(r, "MinSpaceAtStartOfBar")?;
+            } else {
+                pm_u32(r, "MinSpaceAtStartOfBar")?;
+            }
+            if r.file_version < 0x1e0000 {
+                pm_u16(r, "MinSpaceAtEndOfBar")?;
+            } else {
+                pm_u32(r, "MinSpaceAtEndOfBar")?;
+            }
+            if r.file_version < 0x1e0000 {
+                pm_u16(r, "SpaceAroundGraceNote")?;
+            } else {
+                pm_u32(r, "SpaceAroundGraceNote")?;
+            }
+            if r.file_version < 0x1e0000 {
+                pm_u16(r, "ExtraSpaceAfterLastGraceNote")?;
+            } else {
+                pm_u32(r, "ExtraSpaceAfterLastGraceNote")?;
+            }
+        }
+        if r.since(0xa000a) {
+            pm_bool(r, "AllowFirstLyricOverhang")?;
+        }
+        if r.since(0xa000b) {
+            pm_bool(r, "AllowSpaceForHyphen")?;
+        }
+        if r.since(0xa0010) {
+            pm_bool(r, "AllowSpaceForVoiceConflicts")?;
+        }
+        if r.since(0x300005) {
+            pm_bool(r, "IncludeChordSymbols")?;
+        }
+        if r.since(0x310009) {
+            pm_bool(r, "DetermineEmptyBarWidthBySrLength")?;
+        }
+        if r.since(0x33000b) {
+            pm_u32(r, "ExtraSpaceBetweenGuitarFrames")?;
+        }
+        if r.since(0x340000) {
+            pm_u32(r, "MinSpaceBeforeArpeggio")?;
+        }
+        Ok(())
+    })?;
+    Ok(())
+}
+
+/// 8.3.0 `0x10104f731`.
+pub(super) fn notehead_playback_style(r: &mut Reader) -> Result<()> {
+    r.any_tag()?;
+    notehead_playback_style_body(r)?;
     Ok(())
 }
 
@@ -3237,7 +3269,7 @@ pub(super) fn options_body(r: &mut Reader) -> Result<()> {
     r.bool("ShowHiddenBarNumbers")?;
     r.u32("RehearsalMarksStyle")?;
     if v < 0x100000 {
-        pm_f_100fa28f4(r, "TimeSignatureTextStyle")?;
+        pm_time_signature_text_style(r, "TimeSignatureTextStyle")?;
     } else {
         pm_style_id(r, "TimeSignatureTextStyle")?;
     }
@@ -4039,7 +4071,11 @@ pub(super) fn options_body(r: &mut Reader) -> Result<()> {
         if r.since(0x3dffff) {
             r.bool("RestsAvoidOthers")?;
             r.bool("RestsFollowNotes")?;
-            r.node("DefaultRestPhraseGrouping", "DefaultRestPhraseGrouping", default_rest_phrase_grouping)?;
+            r.node(
+                "DefaultRestPhraseGrouping",
+                "DefaultRestPhraseGrouping",
+                default_rest_phrase_grouping,
+            )?;
             r.bool("RestsContinue")?;
         }
         options_tail(r)?;
@@ -4048,149 +4084,20 @@ pub(super) fn options_body(r: &mut Reader) -> Result<()> {
     Ok(())
 }
 
-/// 8.3.0 `0x100f09a16`.
-pub(super) fn f_100f09a16(r: &mut Reader) -> Result<()> {
-    let v = r.file_version;
-    r.f32("DefaultVoiceVolume")?;
-    r.u8("TremoloNoteLength")?;
-    r.u8("SlurNoteLength")?;
-    r.u8("NormalNoteLength")?;
-    r.f32("ArpeggiateTime")?;
-    r.u8("Espressivo")?;
-    r.bool("RandomVolumes")?;
-    r.bool("AccentBeams")?;
-    r.f32("GraceNoteDurationPerSu")?;
-    if v < 0x3d0000 {
-        if v < 0x100000 {
-            r.u16("Swing")?;
-        } else {
-            r.node("Swing", "StyleId", style_id)?;
-        }
-    } else {
-        r.node("SwingPattern", "SwingPattern", swing_pattern)?;
-    }
-    list_articulations(r, "Articulations")?;
-    r.bool("SendReverbData")?;
-    r.u8("AverageReverb")?;
-    r.bool("SendPanData")?;
-    r.record("record", "Record", |r| {
-        if r.since(0x20007) {
-            r.f32("MinTremoloTime")?;
-            r.bool("SendDetuneData")?;
-            if r.since(0x30001) {
-                r.bool("PlayRepeats")?;
-                r.bool("ShortenDotted")?;
-                r.bool("ResetControllers")?;
-                r.bool("SendBankChangesMSB")?;
-                r.bool("SendBankChangesLSB")?;
-                r.bool("SendProgramChanges")?;
-                r.bool("SwingAsShorthand")?;
-            }
-            if r.since(0x50005) {
-                r.i32("SoloState")?;
-                r.u32("SoloedStave")?;
-                r.u32("FirstStaveOnMixer")?;
-            }
-            if r.since(0x60001) {
-                r.u32("RubatoLevel")?;
-            }
-            if r.since(0x60005) {
-                r.f32("MaxLengthAdjustment")?;
-            }
-            if r.since(0x80011) {
-                r.bool("DynamicsAffectAdjacentStaves")?;
-                r.u32("SpacesForMultistaveDynamics")?;
-            }
-            if r.since(0x80013) {
-                r.bool("LiveMode")?;
-            }
-            if r.since(0x8001b) {
-                r.u32("FineLengthInBeats")?;
-            }
-            if r.since(0xa001b) {
-                r.bool("TiesBetweenVoices")?;
-            }
-            if r.since(0x230000) {
-                r.string("ConfigurationName")?;
-            }
-            if r.since(0x280007) {
-                r.f32("DefaultVoiceAttack")?;
-            }
-            if r.since(0x2a0002) {
-                r.bool("ConvertLiveVelocitiesToDynamics")?;
-            }
-            if r.since(0x2c0001) {
-                r.bool("ShowGroupStripsInMixer")?;
-                r.bool("ShowStaffStripsInMixer")?;
-            }
-            if r.since(0x330008) {
-                r.bool("LiveTempoBeatInIsInBars")?;
-                r.u32("LiveTempoBeatIn")?;
-                r.bool("UseLiveTempoPlayback")?;
-                r.bool("FactoriseLiveTempoRecording")?;
-                r.f32("LiveTempoRecordingSmoothingFactor")?;
-            }
-            if r.since(0x340004) {
-                r.u32("ReverbType")?;
-                if r.file_version < 0x340007 {
-                    r.bool("UseConvolutionReverb")?;
-                    r.bool("UseConvolutionReverbInFlexiTime")?;
-                }
-                r.u8("SibeliusPlayerReverbLevel")?;
-                r.u8("SibeliusPlayerChorusLevel")?;
-            }
-            if r.since(0x340005) {
-                r.f32("MasterVolumedB")?;
-            }
-            if r.since(0x340007) {
-                r.node("PlaybackConfigParams", "PlaybackConfigParams", playback_config_params)?;
-            }
-            if r.since(0x360000) {
-                r.bool("PlayGapAfterSectionEnds")?;
-            }
-            if r.since(0x360003) {
-                r.bool("PlayRepeatsAfterDSDC")?;
-                r.bool("UseManualBarPlaySequence")?;
-                r.string("ManualBarPlaySequenceString")?;
-            }
-            if r.since(0x36001c) {
-                r.bool("MixerFadersScaleNoteVelocity")?;
-            }
-            if r.since(0x3d0000) {
-                r.node("MeterEmphasisSettings", "MeterEmphasisSettings", meter_emphasis_settings)?;
-            }
-            if r.since(0x3d0002) {
-                r.bool("AppoggiaturasPlayOnTheBeat")?;
-            }
-            if r.since(0x3d0003) {
-                r.u32("ShortAppoggiaturaDuration_ms")?;
-            }
-            if r.since(0x3d0004) {
-                r.bool("UseNewEspressivo")?;
-                r.u32("NewEspressivoPreset")?;
-            }
-            if r.since(0x3d0005) {
-                r.node("PlaybackNuanceSettings", "PlaybackNuanceSettings", playback_nuance_settings)?;
-            }
-            if r.since(0x3d0009) {
-                r.bool("PlayBackMordents")?;
-            }
-        }
-        playing_options_tail(r)?;
-        Ok(())
-    })?;
+/// 8.3.0 `0x101005042`.
+pub(super) fn list_symbols(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("Symbol", symbol).map(Value::Node))?;
     Ok(())
 }
 
-/// 8.3.0 `0x10104f731`.
-pub(super) fn f_10104f731(r: &mut Reader) -> Result<()> {
-    r.any_tag()?;
-    f_10104f778(r)?;
+/// 8.3.0 `0x10100682f`.
+pub(super) fn list_indexed_symbols(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("IndexedSymbol", indexed_symbol).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100f37244`.
-pub(super) fn f_100f37244(r: &mut Reader) -> Result<()> {
+pub(super) fn symbol_category(r: &mut Reader) -> Result<()> {
     r.tag(0x4f)?;
     r.string("Name")?;
     r.i32("StartIndex")?;
@@ -4198,235 +4105,64 @@ pub(super) fn f_100f37244(r: &mut Reader) -> Result<()> {
     Ok(())
 }
 
-/// 8.3.0 `0x1010056ae`.
-pub(super) fn list_note_styles(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListNoteStylesItem", |r| {
-            note_style(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+/// 8.3.0 `0x101013186`.
+pub(super) fn list_clef_styles(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("ClefStyle", clef_style).map(Value::Node))?;
     Ok(())
 }
 
-/// 8.3.0 `0x10100689f`.
-pub(super) fn list_indexed_note_styles(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListIndexedNoteStylesItem", |r| {
-            f_101008c06(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+/// 8.3.0 `0x100f997b8`.
+pub(super) fn midi_connection(r: &mut Reader) -> Result<()> {
+    r.tag(0x4e)?;
+    r.string("Name")?;
+    r.string("Model")?;
+    r.string("DeviceTypeName")?;
+    r.string("EquipmentName")?;
+    r.record("record", "Record", |_| Ok(()))?;
     Ok(())
 }
 
-/// 8.3.0 `0x101007c7c`.
-pub(super) fn list_ensemble_list(r: &mut Reader, name: &'static str) -> Result<()> {
-    if r.file_version <= 0xfffff {
-        // the count is stored without items
-        r.u32(name)?;
-        return Ok(());
-    }
-    r.list(name, |r| {
-        r.sub("ListEnsembleListItem", |r| {
-            f_100d975c4(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100ef299e`.
-pub(super) fn f_100ef299e(r: &mut Reader) -> Result<()> {
-    let v = r.file_version;
-    if v < 0x1e0000 {
-        pm_u16(r, "DefaultBarRestWidth")?;
-    } else {
-        pm_u32(r, "DefaultBarRestWidth")?;
-    }
-    if v < 0x1e0000 {
-        pm_u16(r, "DefaultStartOfBarGap")?;
-    } else {
-        pm_u32(r, "DefaultStartOfBarGap")?;
-    }
-    if v < 0x1e0000 {
-        pm_u16(r, "Minimum")?;
-    } else {
-        pm_u32(r, "Minimum")?;
-    }
-    if v < 0x1e0000 {
-        pm_u16(r, "Sixteenth")?;
-    } else {
-        pm_u32(r, "Sixteenth")?;
-    }
-    if v < 0x1e0000 {
-        pm_u16(r, "Eighth")?;
-    } else {
-        pm_u32(r, "Eighth")?;
-    }
-    if v < 0x1e0000 {
-        pm_u16(r, "Quarter")?;
-    } else {
-        pm_u32(r, "Quarter")?;
-    }
-    if v < 0x1e0000 {
-        pm_u16(r, "Half")?;
-    } else {
-        pm_u32(r, "Half")?;
-    }
-    if v < 0x1e0000 {
-        pm_u16(r, "Whole")?;
-    } else {
-        pm_u32(r, "Whole")?;
-    }
-    if v < 0x1e0000 {
-        pm_u16(r, "DoubleWhole")?;
-    } else {
-        pm_u32(r, "DoubleWhole")?;
-    }
-    r.record("record", "Record", |r| {
-        if r.since(0x30006) {
-            pm_bool(r, "IncludeLyrics")?;
-        }
-        if r.since(0xa0004) {
-            if r.file_version < 0x1e0000 {
-                pm_u16(r, "HookWidth")?;
-            } else {
-                pm_u32(r, "HookWidth")?;
-            }
-        }
-        if r.since(0xa0008) {
-            if r.file_version < 0x1e0000 {
-                pm_u16(r, "MinSpaceAroundNote")?;
-            } else {
-                pm_u32(r, "MinSpaceAroundNote")?;
-            }
-            if r.file_version < 0x1e0000 {
-                pm_u16(r, "MinSpaceBeforeAccidental")?;
-            } else {
-                pm_u32(r, "MinSpaceBeforeAccidental")?;
-            }
-            if r.file_version < 0x1e0000 {
-                pm_u16(r, "MinSpaceAroundLegerLine")?;
-            } else {
-                pm_u32(r, "MinSpaceAroundLegerLine")?;
-            }
-            if r.file_version < 0x1e0000 {
-                pm_u16(r, "MinSpaceAtStartOfBar")?;
-            } else {
-                pm_u32(r, "MinSpaceAtStartOfBar")?;
-            }
-            if r.file_version < 0x1e0000 {
-                pm_u16(r, "MinSpaceAtEndOfBar")?;
-            } else {
-                pm_u32(r, "MinSpaceAtEndOfBar")?;
-            }
-            if r.file_version < 0x1e0000 {
-                pm_u16(r, "SpaceAroundGraceNote")?;
-            } else {
-                pm_u32(r, "SpaceAroundGraceNote")?;
-            }
-            if r.file_version < 0x1e0000 {
-                pm_u16(r, "ExtraSpaceAfterLastGraceNote")?;
-            } else {
-                pm_u32(r, "ExtraSpaceAfterLastGraceNote")?;
-            }
-        }
-        if r.since(0xa000a) {
-            pm_bool(r, "AllowFirstLyricOverhang")?;
-        }
-        if r.since(0xa000b) {
-            pm_bool(r, "AllowSpaceForHyphen")?;
-        }
-        if r.since(0xa0010) {
-            pm_bool(r, "AllowSpaceForVoiceConflicts")?;
-        }
-        if r.since(0x300005) {
-            pm_bool(r, "IncludeChordSymbols")?;
-        }
-        if r.since(0x310009) {
-            pm_bool(r, "DetermineEmptyBarWidthBySrLength")?;
-        }
-        if r.since(0x33000b) {
-            pm_u32(r, "ExtraSpaceBetweenGuitarFrames")?;
-        }
-        if r.since(0x340000) {
-            pm_u32(r, "MinSpaceBeforeArpeggio")?;
-        }
-        Ok(())
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x101005042`.
-pub(super) fn list_symbols(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListSymbolsItem", |r| {
-            editable(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x10100682f`.
-pub(super) fn list_indexed_symbols(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListIndexedSymbolsItem", |r| {
-            f_101008f00(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x10105257d`.
-pub(super) fn f_10105257d(r: &mut Reader) -> Result<()> {
+/// 8.3.0 `0x1010533f7`.
+pub(super) fn articulation_playback_style(r: &mut Reader) -> Result<()> {
     r.any_tag()?;
-    f_1010525c4(r)?;
+    articulation_playback_style_body(r)?;
+    Ok(())
+}
+
+/// 8.3.0 `0x10100f9e2`.
+pub(super) fn list_pen_styles(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("PenStyle", pen_style).map(Value::Node))?;
+    Ok(())
+}
+
+/// 8.3.0 `0x1010149a4`.
+pub(super) fn list_text_styles(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("MusicTextStyle", music_text_style).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x1010118f2`.
 pub(super) fn list_line_styles(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListLineStylesItem", |r| {
-            f_100f328d6(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100d8d7d8`.
-pub(super) fn mididata(r: &mut Reader) -> Result<()> {
-    r.tag(0x3d)?;
-    f_100d8d6e2(r)?;
+    r.list(name, |r| r.sub("LineStyle", line_style).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100f3e2aa`.
-pub(super) fn f_100f3e2aa(r: &mut Reader) -> Result<()> {
+pub(super) fn stave_midi_data_body(r: &mut Reader) -> Result<()> {
     midi_settings(r)?;
     r.u32("MuteMode")?;
     Ok(())
 }
 
 /// 8.3.0 `0x100e133a8`.
-pub(super) fn f_100e133a8(r: &mut Reader) -> Result<()> {
+pub(super) fn hit_points_body(r: &mut Reader) -> Result<()> {
     list_array(r, "Array")?;
     r.record("record", "Record", |_| Ok(()))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100a0cf26`.
-pub(super) fn f_100a0cf26(r: &mut Reader) -> Result<()> {
+pub(super) fn repulser_trait(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     r.tag(0x7b)?;
     r.u32("mask")?;
@@ -4473,7 +4209,7 @@ pub(super) fn style_header(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     if v < 0x120000 {
         if v > 0xfffff && v < 0x120000 {
-            f_100e6aed2(r)?;
+            legacy_style_header(r)?;
         } else {
             style_name(r)?;
         }
@@ -4487,7 +4223,7 @@ pub(super) fn style_header(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x1010d9754`.
-pub(super) fn f_1010d9754(r: &mut Reader) -> Result<()> {
+pub(super) fn font(r: &mut Reader) -> Result<()> {
     r.u32("Height")?;
     r.string("FontName")?;
     r.bool("Bold")?;
@@ -4526,7 +4262,7 @@ pub(super) fn f_1010d9754(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100f539f0`.
-pub(super) fn f_100f539f0(r: &mut Reader) -> Result<()> {
+pub(super) fn y_position(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     r.tag(0x43)?;
     pm_bool(r, "Visible")?;
@@ -4540,7 +4276,7 @@ pub(super) fn f_100f539f0(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100f3fb74`.
-pub(super) fn f_100f3fb74(r: &mut Reader) -> Result<()> {
+pub(super) fn beam_event(r: &mut Reader) -> Result<()> {
     r.u32("BeamType")?;
     r.u16("Sr")?;
     r.record("record", "Record", |_| Ok(()))?;
@@ -4590,10 +4326,10 @@ pub(super) fn spacing(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x101019861`.
-pub(super) fn list_part_map_default_9861(r: &mut Reader, name: &'static str) -> Result<()> {
+pub(super) fn list_page_offset_pairs(r: &mut Reader, name: &'static str) -> Result<()> {
     r.list(name, |r| {
-        r.sub("ListPartMapDefault9861Item", |r| {
-            f_100fda178(r, "__Pair[]")?;
+        r.sub("ListPageOffsetPairsItem", |r| {
+            list_stave_nums(r, "__Pair[]")?;
             Ok(())
         })
         .map(Value::Node)
@@ -4602,7 +4338,7 @@ pub(super) fn list_part_map_default_9861(r: &mut Reader, name: &'static str) -> 
 }
 
 /// 8.3.0 `0x1010199af`.
-pub(super) fn f_1010199af(r: &mut Reader) -> Result<()> {
+pub(super) fn margin_modifier(r: &mut Reader) -> Result<()> {
     r.tag(0x6d)?;
     r.u8("MMMarginTypeLabel")?;
     r.f32("MMPageLeftMarginmmLabel")?;
@@ -4624,26 +4360,20 @@ pub(super) fn f_1010199af(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x101022750`.
-pub(super) fn list_part_map_default_2750(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListPartMapDefault2750Item", |r| {
-            f_101193236(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+pub(super) fn list_page_number_changes(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("PageNumberChange", page_number_change).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100f44324`.
-pub(super) fn f_100f44324(r: &mut Reader) -> Result<()> {
+pub(super) fn stave_type(r: &mut Reader) -> Result<()> {
     r.tag(0x53)?;
-    f_100f44586(r)?;
+    stave_type_body(r)?;
     Ok(())
 }
 
 /// 8.3.0 `0x10104ddea`.
-pub(super) fn f_10104ddea(r: &mut Reader) -> Result<()> {
+pub(super) fn line_playback_style_body(r: &mut Reader) -> Result<()> {
     r.node("StyleId", "StyleId", style_id)?;
     r.string("SoundIDChange")?;
     r.node("StyleType", "StyleType", style_type)?;
@@ -4659,18 +4389,58 @@ pub(super) fn f_10104ddea(r: &mut Reader) -> Result<()> {
 
 /// 8.3.0 `0x1010e8e00`.
 pub(super) fn offsets(r: &mut Reader) -> Result<()> {
-    r.list("items", |r| {
-        r.sub("ItemsItem", |r| {
-            r.u16("value")?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list("items", u16)?;
+    Ok(())
+}
+
+/// 8.3.0 `0x1010ea87d`.
+pub(super) fn swing_pattern(r: &mut Reader) -> Result<()> {
+    r.any_tag()?;
+    swing_pattern_body(r)?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100f11dc2`.
+pub(super) fn list_articulations(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("ArticulationMark", articulation_mark).map(Value::Node))?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100bb335b`.
+pub(super) fn playback_config_params(r: &mut Reader) -> Result<()> {
+    r.tag(0x88)?;
+    playback_config_params_body(r)?;
+    Ok(())
+}
+
+/// 8.3.0 `0x1009b42a2`.
+pub(super) fn meter_emphasis_settings(r: &mut Reader) -> Result<()> {
+    r.any_tag()?;
+    meter_emphasis_settings_body(r)?;
+    Ok(())
+}
+
+/// 8.3.0 `0x1009b9ebe`.
+pub(super) fn playback_nuance_settings(r: &mut Reader) -> Result<()> {
+    r.any_tag()?;
+    playback_nuance_settings_body(r)?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100d8d6e2`.
+pub(super) fn system_stave_midi_data_body(r: &mut Reader) -> Result<()> {
+    midi_settings(r)?;
+    r.u8("ClickPitch")?;
+    r.u16("ClickPeriod")?;
+    r.u16("ClickLength")?;
+    r.bool("FollowBeat")?;
+    r.u16("OldBarsIntro")?;
+    r.record("record", "Record", |_| Ok(()))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100f73b5e`.
-pub(super) fn f_100f73b5e(r: &mut Reader) -> Result<()> {
+pub(super) fn instrument(r: &mut Reader) -> Result<()> {
     r.tag(0x32)?;
     style_header(r)?;
     r.string("FullName")?;
@@ -4684,11 +4454,11 @@ pub(super) fn f_100f73b5e(r: &mut Reader) -> Result<()> {
     r.u8("BottomNote")?;
     r.u8("ComfortableTopNote")?;
     r.u8("ComfortableBottomNote")?;
-    r.node("StaveTypeId", "F100fa7c28", f_100fa7c28)?;
+    r.node("StaveTypeId", "StaveTypeRef", stave_type_ref)?;
     r.u8("NumStaves")?;
-    r.node("Clef", "F100fa77fa", f_100fa77fa)?;
-    r.node("OtherClef", "F100fa77fa", f_100fa77fa)?;
-    r.node("PartClef", "F100fa77fa", f_100fa77fa)?;
+    r.node("Clef", "ClefStyleRef", clef_style_ref)?;
+    r.node("OtherClef", "ClefStyleRef", clef_style_ref)?;
+    r.node("PartClef", "ClefStyleRef", clef_style_ref)?;
     r.node("GlissType", "GlissType", gliss_type)?;
     r.u16("PartDiat")?;
     r.u16("PartChrom2")?;
@@ -4727,11 +4497,180 @@ pub(super) fn f_100f73b5e(r: &mut Reader) -> Result<()> {
     Ok(())
 }
 
+/// 8.3.0 `0x101008c06`.
+pub(super) fn indexed_note_style(r: &mut Reader) -> Result<()> {
+    r.tag(0x34)?;
+    indexed_note_style_body(r)?;
+    Ok(())
+}
+
+/// 8.3.0 `0x1010525c4`.
+pub(super) fn symbol_playback_style_body(r: &mut Reader) -> Result<()> {
+    r.u32("StyleNum")?;
+    r.string("SoundIDChange")?;
+    r.record("record", "Record", |r| {
+        if r.since(0x2d0002) {
+            r.node(
+                "SoundIDChangeDuration",
+                "SoundIdchangeDuration",
+                sound_idchange_duration,
+            )?;
+        }
+        if r.since(0x390017) {
+            r.node("StyleType", "StyleType", style_type)?;
+            r.string("ParamString")?;
+        }
+        Ok(())
+    })?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100d975c4`.
+pub(super) fn ensemble(r: &mut Reader) -> Result<()> {
+    r.tag(0x6e)?;
+    style_header(r)?;
+    r.string("FamilySelectedByDefault")?;
+    r.string("InstrumentSelectedByDefault")?;
+    list_families(r, "Families")?;
+    r.record("record", "Record", |_| Ok(()))?;
+    Ok(())
+}
+
+/// 8.3.0 `0x10104f778`.
+pub(super) fn notehead_playback_style_body(r: &mut Reader) -> Result<()> {
+    r.u32("StyleNum")?;
+    r.string("SoundIDChange")?;
+    r.node("StyleType", "StyleType", style_type)?;
+    r.string("ParamString")?;
+    r.record("record", "Record", |_| Ok(()))?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100e503c4`.
+pub(super) fn pm_time_signature_text_style(r: &mut Reader, name: &'static str) -> Result<()> {
+    part_map(r, name, |r| {
+        r.sub("TimeSignatureTextStyle", time_signature_text_style)
+            .map(Value::Node)
+    })
+}
+
+/// 8.3.0 `0x100dd7592`.
+pub(super) fn extract_options(r: &mut Reader) -> Result<()> {
+    r.tag(0x57)?;
+    extract_options_body(r)?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100dff26b`.
+pub(super) fn default_barline_type(r: &mut Reader) -> Result<()> {
+    r.u8("value")?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100e509eb`.
+pub(super) fn list_editable_options_list(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("TypeOptions", type_options).map(Value::Node))?;
+    Ok(())
+}
+
+/// 8.3.0 `0x10118ce8c`.
+pub(super) fn page_and_stave_margins(r: &mut Reader) -> Result<()> {
+    r.tag(0x69)?;
+    r.record("record", "Record", |r| {
+        pm_f32(r, "PageWidthmm")?;
+        pm_f32(r, "PageHeightmm")?;
+        pm_f32(r, "StaveHeightmm")?;
+        pm_u8(r, "MarginType")?;
+        pm_u32(r, "PageWidthSu")?;
+        pm_u32(r, "PageHeightSu")?;
+        pm_f32(r, "PageLeftMarginmm")?;
+        pm_f32(r, "PageRightMarginmm")?;
+        pm_f32(r, "PageTopMarginmm")?;
+        pm_f32(r, "PageBottomMarginmm")?;
+        pm_f32(r, "RightPageLeftMarginmm")?;
+        pm_f32(r, "RightPageRightMarginmm")?;
+        pm_u32(r, "StaffLeftMarginNoNamesSu")?;
+        pm_u32(r, "StaffLeftMarginShortNamesSu")?;
+        pm_u32(r, "StaffLeftMarginFullNamesSu")?;
+        pm_u32(r, "AboveTopStaveGapSu")?;
+        pm_u32(r, "BelowBottomStaveGapSu")?;
+        pm_u32(r, "AboveTopStaveGapAfterFirstPageSu")?;
+        pm_u32(r, "BelowBottomStaveGapAfterFirstPageSu")?;
+        pm_bool(r, "UseValuesAfterFirstPage")?;
+        Ok(())
+    })?;
+    Ok(())
+}
+
+/// 8.3.0 `0x1010b5e6a`.
+pub(super) fn chord_symbol_options(r: &mut Reader) -> Result<()> {
+    r.tag(0x7d)?;
+    chord_symbol_options_body(r)?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100eb87b0`.
+pub(super) fn default_rest_phrase_grouping(r: &mut Reader) -> Result<()> {
+    r.u8("value")?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100f37634`.
+pub(super) fn symbol(r: &mut Reader) -> Result<()> {
+    let v = r.file_version;
+    r.tag(0x36)?;
+    if v < 0x1d0000 {
+        r.string("Name")?;
+    } else {
+        style_name(r)?;
+    }
+    r.u8("Character")?;
+    if v < 0x1e0000 {
+        r.u16("Dx")?;
+    } else {
+        r.u32("Dx")?;
+    }
+    if v < 0x1e0000 {
+        r.u16("Dy")?;
+    } else {
+        r.u32("Dy")?;
+    }
+    r.node("TextStyleNum", "TextStyleRef", text_style_ref)?;
+    list_sub_symbols(r, "SubSymbols")?;
+    r.record("record", "Record", |r| {
+        if r.since(0x3000a) {
+            r.u16("UnicodeChar")?;
+        }
+        if r.since(0x370002) {
+            let is_graphic = r.bool("IsGraphic")?;
+            if is_graphic {
+                r.node("Graphic", "GraphicData", graphic_data)?;
+            }
+        }
+        if r.since(0x38000b) {
+            r.f32("Scale")?;
+            r.f32("Rotation")?;
+        }
+        if r.since(0x390008) {
+            r.u32("DefaultAttachment")?;
+        }
+        Ok(())
+    })?;
+    Ok(())
+}
+
+/// 8.3.0 `0x101008f00`.
+pub(super) fn indexed_symbol(r: &mut Reader) -> Result<()> {
+    r.tag(0x34)?;
+    indexed_symbol_body(r)?;
+    Ok(())
+}
+
 /// 8.3.0 `0x100deb984`.
-pub(super) fn f_100deb984(r: &mut Reader) -> Result<()> {
+pub(super) fn clef_style(r: &mut Reader) -> Result<()> {
     r.tag(0x31)?;
     style_header(r)?;
-    r.node("Symbol", "Symbol", symbol)?;
+    r.node("Symbol", "SymbolIndex", symbol_index)?;
     r.u8("Diat")?;
     r.i8("CentrePos")?;
     r.u8("MaxSharpPos")?;
@@ -4740,15 +4679,43 @@ pub(super) fn f_100deb984(r: &mut Reader) -> Result<()> {
     Ok(())
 }
 
+/// 8.3.0 `0x10105343e`.
+pub(super) fn articulation_playback_style_body(r: &mut Reader) -> Result<()> {
+    r.u32("StyleNum")?;
+    r.string("SoundIDChange")?;
+    r.node("StyleType", "StyleType", style_type)?;
+    r.string("ParamString")?;
+    r.record("record", "Record", |_| Ok(()))?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100f0836c`.
+pub(super) fn pen_style(r: &mut Reader) -> Result<()> {
+    let v = r.file_version;
+    r.tag(0x39)?;
+    style_header(r)?;
+    if v < 0x1e0000 {
+        r.u16("Width")?;
+    } else {
+        r.u32("Width")?;
+    }
+    r.u8("Sizes")?;
+    r.bool("Alias")?;
+    r.bool("LineStylePen")?;
+    r.u8("ScaledSizes")?;
+    r.record("record", "Record", |_| Ok(()))?;
+    Ok(())
+}
+
 /// 8.3.0 `0x100ec03bc`.
-pub(super) fn f_100ec03bc(r: &mut Reader) -> Result<()> {
+pub(super) fn music_text_style(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     if v < 0x380000 {
-        f_100ec102c(r)?;
+        legacy_music_text_style(r)?;
     } else {
         r.tag(0x35)?;
         style_header(r)?;
-        f_1010d9754(r)?;
+        font(r)?;
         r.u32("Angle")?;
         r.i32("BBits")?;
         r.u8("BoxTop")?;
@@ -4815,7 +4782,11 @@ pub(super) fn f_100ec03bc(r: &mut Reader) -> Result<()> {
                 r.bool("IsGapAfterParagraphSet")?;
             }
             if r.since(0x39000b) {
-                r.node("FrameVerticalAlignment", "FrameVerticalAlignment", frame_vertical_alignment)?;
+                r.node(
+                    "FrameVerticalAlignment",
+                    "FrameVerticalAlignment",
+                    frame_vertical_alignment,
+                )?;
                 r.bool("IsFrameVerticalAlignmentSet")?;
             }
             if r.since(0x390015) {
@@ -4829,244 +4800,8 @@ pub(super) fn f_100ec03bc(r: &mut Reader) -> Result<()> {
     Ok(())
 }
 
-/// 8.3.0 `0x100f0836c`.
-pub(super) fn pen_style(r: &mut Reader) -> Result<()> {
-    let v = r.file_version;
-    r.tag(0x39)?;
-    style_header(r)?;
-    if v < 0x1e0000 {
-        r.u16("Width")?;
-    } else {
-        r.u32("Width")?;
-    }
-    r.u8("Sizes")?;
-    r.bool("Alias")?;
-    r.bool("LineStylePen")?;
-    r.u8("ScaledSizes")?;
-    r.record("record", "Record", |_| Ok(()))?;
-    Ok(())
-}
-
-/// 8.3.0 `0x10105343e`.
-pub(super) fn f_10105343e(r: &mut Reader) -> Result<()> {
-    r.u32("StyleNum")?;
-    r.string("SoundIDChange")?;
-    r.node("StyleType", "StyleType3363", style_type_3363)?;
-    r.string("ParamString")?;
-    r.record("record", "Record", |_| Ok(()))?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100e503c4`.
-pub(super) fn pm_f_100fa28f4(r: &mut Reader, name: &'static str) -> Result<()> {
-    part_map(r, name, |r| r.sub("F100fa28f4", f_100fa28f4).map(Value::Node))
-}
-
-/// 8.3.0 `0x100dd7592`.
-pub(super) fn extract_options(r: &mut Reader) -> Result<()> {
-    r.tag(0x57)?;
-    f_100dd70ac(r)?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100dff26b`.
-pub(super) fn default_barline_type(r: &mut Reader) -> Result<()> {
-    r.u8("value")?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100e509eb`.
-pub(super) fn list_editable_options_list(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListEditableOptionsListItem", |r| {
-            type_options(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x10118ce8c`.
-pub(super) fn page_and_stave_margins(r: &mut Reader) -> Result<()> {
-    r.tag(0x69)?;
-    r.record("record", "Record", |r| {
-        pm_f32(r, "PageWidthmm")?;
-        pm_f32(r, "PageHeightmm")?;
-        pm_f32(r, "StaveHeightmm")?;
-        pm_u8(r, "MarginType")?;
-        pm_u32(r, "PageWidthSu")?;
-        pm_u32(r, "PageHeightSu")?;
-        pm_f32(r, "PageLeftMarginmm")?;
-        pm_f32(r, "PageRightMarginmm")?;
-        pm_f32(r, "PageTopMarginmm")?;
-        pm_f32(r, "PageBottomMarginmm")?;
-        pm_f32(r, "RightPageLeftMarginmm")?;
-        pm_f32(r, "RightPageRightMarginmm")?;
-        pm_u32(r, "StaffLeftMarginNoNamesSu")?;
-        pm_u32(r, "StaffLeftMarginShortNamesSu")?;
-        pm_u32(r, "StaffLeftMarginFullNamesSu")?;
-        pm_u32(r, "AboveTopStaveGapSu")?;
-        pm_u32(r, "BelowBottomStaveGapSu")?;
-        pm_u32(r, "AboveTopStaveGapAfterFirstPageSu")?;
-        pm_u32(r, "BelowBottomStaveGapAfterFirstPageSu")?;
-        pm_bool(r, "UseValuesAfterFirstPage")?;
-        Ok(())
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x1010b5e6a`.
-pub(super) fn chord_symbol_options(r: &mut Reader) -> Result<()> {
-    r.tag(0x7d)?;
-    f_1010b5900(r)?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100eb87b0`.
-pub(super) fn default_rest_phrase_grouping(r: &mut Reader) -> Result<()> {
-    r.u8("value")?;
-    Ok(())
-}
-
-/// 8.3.0 `0x1010ea87d`.
-pub(super) fn swing_pattern(r: &mut Reader) -> Result<()> {
-    r.any_tag()?;
-    f_1010ea71e(r)?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100f11dc2`.
-pub(super) fn list_articulations(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListArticulationsItem", |r| {
-            f_100dec698(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100bb335b`.
-pub(super) fn playback_config_params(r: &mut Reader) -> Result<()> {
-    r.tag(0x88)?;
-    f_100bb2d20(r)?;
-    Ok(())
-}
-
-/// 8.3.0 `0x1009b42a2`.
-pub(super) fn meter_emphasis_settings(r: &mut Reader) -> Result<()> {
-    r.any_tag()?;
-    f_1009b4168(r)?;
-    Ok(())
-}
-
-/// 8.3.0 `0x1009b9ebe`.
-pub(super) fn playback_nuance_settings(r: &mut Reader) -> Result<()> {
-    r.any_tag()?;
-    f_1009b9f12(r)?;
-    Ok(())
-}
-
-/// 8.3.0 `0x10104f778`.
-pub(super) fn f_10104f778(r: &mut Reader) -> Result<()> {
-    r.u32("StyleNum")?;
-    r.string("SoundIDChange")?;
-    r.node("StyleType", "StyleTypeF69d", style_type_f69d)?;
-    r.string("ParamString")?;
-    r.record("record", "Record", |_| Ok(()))?;
-    Ok(())
-}
-
-/// 8.3.0 `0x101008c06`.
-pub(super) fn f_101008c06(r: &mut Reader) -> Result<()> {
-    r.tag(0x34)?;
-    f_101008c4e(r)?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100d975c4`.
-pub(super) fn f_100d975c4(r: &mut Reader) -> Result<()> {
-    r.tag(0x6e)?;
-    style_header(r)?;
-    r.string("FamilySelectedByDefault")?;
-    r.string("InstrumentSelectedByDefault")?;
-    list_families(r, "Families")?;
-    r.record("record", "Record", |_| Ok(()))?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100f37634`.
-pub(super) fn editable(r: &mut Reader) -> Result<()> {
-    let v = r.file_version;
-    r.tag(0x36)?;
-    if v < 0x1d0000 {
-        r.string("Name")?;
-    } else {
-        style_name(r)?;
-    }
-    r.u8("Character")?;
-    if v < 0x1e0000 {
-        r.u16("Dx")?;
-    } else {
-        r.u32("Dx")?;
-    }
-    if v < 0x1e0000 {
-        r.u16("Dy")?;
-    } else {
-        r.u32("Dy")?;
-    }
-    r.node("TextStyleNum", "F100fa75d2", f_100fa75d2)?;
-    list_sub_symbols(r, "SubSymbols")?;
-    r.record("record", "Record", |r| {
-        if r.since(0x3000a) {
-            r.u16("UnicodeChar")?;
-        }
-        if r.since(0x370002) {
-            let is_graphic = r.bool("IsGraphic")?;
-            if is_graphic {
-                r.node("Graphic", "GraphicCc3a", graphic_cc3a)?;
-            }
-        }
-        if r.since(0x38000b) {
-            r.f32("Scale")?;
-            r.f32("Rotation")?;
-        }
-        if r.since(0x390008) {
-            r.u32("DefaultAttachment")?;
-        }
-        Ok(())
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x101008f00`.
-pub(super) fn f_101008f00(r: &mut Reader) -> Result<()> {
-    r.tag(0x34)?;
-    f_101008f48(r)?;
-    Ok(())
-}
-
-/// 8.3.0 `0x1010525c4`.
-pub(super) fn f_1010525c4(r: &mut Reader) -> Result<()> {
-    r.u32("StyleNum")?;
-    r.string("SoundIDChange")?;
-    r.record("record", "Record", |r| {
-        if r.since(0x2d0002) {
-            r.node("SoundIDChangeDuration", "SoundIdchangeDuration", sound_idchange_duration)?;
-        }
-        if r.since(0x390017) {
-            r.node("StyleType", "StyleType24e9", style_type_24e9)?;
-            r.string("ParamString")?;
-        }
-        Ok(())
-    })?;
-    Ok(())
-}
-
 /// 8.3.0 `0x100f328d6`.
-pub(super) fn f_100f328d6(r: &mut Reader) -> Result<()> {
+pub(super) fn line_style(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     r.tag(0x3a)?;
     style_header(r)?;
@@ -5153,32 +4888,14 @@ pub(super) fn f_100f328d6(r: &mut Reader) -> Result<()> {
     Ok(())
 }
 
-/// 8.3.0 `0x100d8d6e2`.
-pub(super) fn f_100d8d6e2(r: &mut Reader) -> Result<()> {
-    midi_settings(r)?;
-    r.u8("ClickPitch")?;
-    r.u16("ClickPeriod")?;
-    r.u16("ClickLength")?;
-    r.bool("FollowBeat")?;
-    r.u16("OldBarsIntro")?;
-    r.record("record", "Record", |_| Ok(()))?;
-    Ok(())
-}
-
 /// 8.3.0 `0x100e13784`.
 pub(super) fn list_array(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListArrayItem", |r| {
-            f_100e13492(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list(name, |r| r.sub("HitPointItem", hit_point_item).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100e6aed2`.
-pub(super) fn f_100e6aed2(r: &mut Reader) -> Result<()> {
+pub(super) fn legacy_style_header(r: &mut Reader) -> Result<()> {
     r.string("Name")?;
     r.node("Id", "StyleId", style_id)?;
     r.bool("Compulsory")?;
@@ -5194,7 +4911,7 @@ pub(super) fn style_name(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100f44586`.
-pub(super) fn f_100f44586(r: &mut Reader) -> Result<()> {
+pub(super) fn stave_type_body(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     if v < 0x150000 {
         r.string("Name")?;
@@ -5260,9 +4977,9 @@ pub(super) fn f_100f44586(r: &mut Reader) -> Result<()> {
     })?;
     if stave_lines != 0 {
         if category == 2 {
-            f_100f47537(r, "Pitches")?;
+            list_string_pitches(r, "Pitches")?;
         } else if category == 1 {
-            f_100dd2272(r)?;
+            drum_kit(r)?;
         }
     }
     r.record("record", "Record", |r| {
@@ -5302,7 +5019,7 @@ pub(super) fn f_100f44586(r: &mut Reader) -> Result<()> {
             r.bool("DrawStemsBetweenTabChordNotes")?;
         }
         if r.since(0x1b000d) && (category == 2) {
-            f_100f47537(r, "Diats")?;
+            list_string_pitches(r, "Diats")?;
         }
         if r.since(0x2d0004) {
             r.u32("BarlineBottomDy")?;
@@ -5316,14 +5033,225 @@ pub(super) fn f_100f44586(r: &mut Reader) -> Result<()> {
     Ok(())
 }
 
-/// 8.3.0 `0x10104dd0f`.
+/// 8.3.0 `0x10104dd0f`, `0x1010524e9`, `0x101053363`, `0x10104f69d`.
 pub(super) fn style_type(r: &mut Reader) -> Result<()> {
     r.string("value")?;
     Ok(())
 }
 
+/// 8.3.0 `0x1010ea71e`.
+pub(super) fn swing_pattern_body(r: &mut Reader) -> Result<()> {
+    r.bool("IsLegacySwingStyle")?;
+    r.node("LegacySwingId", "StyleId", style_id)?;
+    r.string("CustomSwingKeywordText")?;
+    r.record("record", "Record", |_| Ok(()))?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100dec698`.
+pub(super) fn articulation_mark(r: &mut Reader) -> Result<()> {
+    r.tag(0x45)?;
+    r.u8("InstScaleLength")?;
+    r.f32("InstDeltaVolume")?;
+    r.f32("InstPauseLength")?;
+    r.record("record", "Record", |r| {
+        if r.since(0x20007) {
+            r.f32("InstStressAmount")?;
+        }
+        Ok(())
+    })?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100bb2d20`.
+pub(super) fn playback_config_params_body(r: &mut Reader) -> Result<()> {
+    r.list("NumVirtualInstruments", |r| {
+        r.sub("NumVirtualInstrumentsItem", |r| {
+            r.u32("VirtualInstrumentSlotNum")?;
+            r.node(
+                "VSTInstrumentParameterSettings",
+                "VstinstrumentParameterSettings",
+                vstinstrument_parameter_settings,
+            )?;
+            Ok(())
+        })
+        .map(Value::Node)
+    })?;
+    r.list("NumEffectBusses", |r| {
+        r.sub("NumEffectBussesItem", |r| {
+            r.u32("EffectBusNum")?;
+            r.node(
+                "VSTEffectParameterSettings",
+                "VsteffectParameterSettings",
+                vsteffect_parameter_settings,
+            )?;
+            Ok(())
+        })
+        .map(Value::Node)
+    })?;
+    r.record("record", "Record", |_| Ok(()))?;
+    Ok(())
+}
+
+/// 8.3.0 `0x1009b4168`.
+pub(super) fn meter_emphasis_settings_body(r: &mut Reader) -> Result<()> {
+    r.u32("PitchedInstrumentPreset")?;
+    r.u32("UnpitchedPercussionPreset")?;
+    r.record("record", "Record", |_| Ok(()))?;
+    Ok(())
+}
+
+/// 8.3.0 `0x1009b9f12`.
+pub(super) fn playback_nuance_settings_body(r: &mut Reader) -> Result<()> {
+    r.f32("OptimalFlamDragDynamicPerNoteReductionRatio")?;
+    r.f32("MaximumFlamDragDynamicGraceNoteGroupReductionRatio")?;
+    r.f32("MinimumFlamDragDynamicReductionRatioForLastGraceNote")?;
+    r.record("record", "Record", |r| {
+        if r.since(0x3d0008) {
+            r.u32("MordentNoteDuration_ms")?;
+            r.u16("MordentNoteDurationSrs")?;
+            r.f32("MaxTimeToStealFromRhythmicNoteForMordents")?;
+        }
+        Ok(())
+    })?;
+    Ok(())
+}
+
+/// 8.3.0 `0x101008c4e`.
+pub(super) fn indexed_note_style_body(r: &mut Reader) -> Result<()> {
+    r.u32("Index")?;
+    r.node("Editable", "NoteStyle", note_style)?;
+    Ok(())
+}
+
+/// 8.3.0 `0x1010563e2`.
+pub(super) fn sound_idchange_duration(r: &mut Reader) -> Result<()> {
+    r.u32("value")?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100d98274`.
+pub(super) fn list_families(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("Family", family).map(Value::Node))?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100fa28f4`.
+pub(super) fn time_signature_text_style(r: &mut Reader) -> Result<()> {
+    r.u8("value")?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100dd70ac`.
+pub(super) fn extract_options_body(r: &mut Reader) -> Result<()> {
+    let v = r.file_version;
+    r.bool("NameOnStaves")?;
+    r.bool("NameTopLeft1stPage")?;
+    r.bool("NameCentreOtherPages")?;
+    r.bool("Transpose")?;
+    r.bool("ResetSpacing")?;
+    r.bool("SaveToDirectory")?;
+    r.u32("Format")?;
+    r.bool("PageToSystemBreak")?;
+    r.bool("DeleteSystemBreak")?;
+    r.bool("DeleteOtherBreaks")?;
+    r.bool("ChangeStaveHeight")?;
+    r.f32("NewStaveHeightmm")?;
+    r.bool("ChangePageSize")?;
+    r.f32("NewPageWidthmm")?;
+    r.f32("NewPageHeightmm")?;
+    r.f32("NewPageLeftmm")?;
+    r.f32("NewPageRightmm")?;
+    r.f32("NewPageTopmm")?;
+    r.f32("NewPageBottommm")?;
+    if v < 0x1e0000 {
+        r.u16("RehearsalMarkSize")?;
+    } else {
+        r.u32("RehearsalMarkSize")?;
+    }
+    r.u32("FilenameFormat")?;
+    r.record("record", "Record", |r| {
+        r.bool("OneBarMultirestsInParts")?;
+        if r.since(0x70001) {
+            r.bool("LandscapePage")?;
+        }
+        if r.since(0x70003) {
+            r.bool("ResetSystemText")?;
+        }
+        if r.since(0x70003) {
+            r.bool("ResetRehearsalMarks")?;
+        }
+        if r.since(0x8001a) {
+            r.bool("UseAutoPageBreaks")?;
+        }
+        Ok(())
+    })?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100da0343`.
+pub(super) fn type_options(r: &mut Reader) -> Result<()> {
+    let v = r.file_version;
+    if v < 0x1e0000 {
+        r.u16("DefaultDx")?;
+    } else {
+        r.u32("DefaultDx")?;
+    }
+    if v < 0x1e0000 {
+        r.u16("DefaultDy")?;
+    } else {
+        r.u32("DefaultDy")?;
+    }
+    r.u32("OptionFlags")?;
+    r.record("record", "Record", |r| {
+        if r.since(0x1a000b) {
+            if r.file_version < 0x1e0000 {
+                r.u16("DefaultDxInParts")?;
+            } else {
+                r.u32("DefaultDxInParts")?;
+            }
+            if r.file_version < 0x1e0000 {
+                r.u16("DefaultDyInParts")?;
+            } else {
+                r.u32("DefaultDyInParts")?;
+            }
+        }
+        if r.since(0x300002) {
+            r.bool("UsePositionAboveStaff")?;
+            r.u32("DefaultDyAboveStaffInScore")?;
+            r.u32("DefaultDyAboveStaffInParts")?;
+        }
+        Ok(())
+    })?;
+    Ok(())
+}
+
+/// 8.3.0 `0x1010b5900`.
+pub(super) fn chord_symbol_options_body(r: &mut Reader) -> Result<()> {
+    let v = r.file_version;
+    if v < 0x350009 {
+        legacy_chord_symbol_settings(r)?;
+    } else {
+        chord_symbol_settings(r)?;
+    }
+    Ok(())
+}
+
+/// 8.3.0 `0x100f3a61c`.
+pub(super) fn list_sub_symbols(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("SubSymbol", sub_symbol).map(Value::Node))?;
+    Ok(())
+}
+
+/// 8.3.0 `0x101008f48`.
+pub(super) fn indexed_symbol_body(r: &mut Reader) -> Result<()> {
+    r.u32("Index")?;
+    r.node("Editable", "Symbol", symbol)?;
+    Ok(())
+}
+
 /// 8.3.0 `0x100ec102c`.
-pub(super) fn f_100ec102c(r: &mut Reader) -> Result<()> {
+pub(super) fn legacy_music_text_style(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     r.tag(0x35)?;
     style_header(r)?;
@@ -5381,43 +5309,6 @@ pub(super) fn f_100ec102c(r: &mut Reader) -> Result<()> {
     Ok(())
 }
 
-/// 8.3.0 `0x100da0343`.
-pub(super) fn type_options(r: &mut Reader) -> Result<()> {
-    let v = r.file_version;
-    if v < 0x1e0000 {
-        r.u16("DefaultDx")?;
-    } else {
-        r.u32("DefaultDx")?;
-    }
-    if v < 0x1e0000 {
-        r.u16("DefaultDy")?;
-    } else {
-        r.u32("DefaultDy")?;
-    }
-    r.u32("OptionFlags")?;
-    r.record("record", "Record", |r| {
-        if r.since(0x1a000b) {
-            if r.file_version < 0x1e0000 {
-                r.u16("DefaultDxInParts")?;
-            } else {
-                r.u32("DefaultDxInParts")?;
-            }
-            if r.file_version < 0x1e0000 {
-                r.u16("DefaultDyInParts")?;
-            } else {
-                r.u32("DefaultDyInParts")?;
-            }
-        }
-        if r.since(0x300002) {
-            r.bool("UsePositionAboveStaff")?;
-            r.u32("DefaultDyAboveStaffInScore")?;
-            r.u32("DefaultDyAboveStaffInParts")?;
-        }
-        Ok(())
-    })?;
-    Ok(())
-}
-
 /// 8.3.0 `0x100e5a65c`.
 pub(super) fn frame_vertical_alignment(r: &mut Reader) -> Result<()> {
     r.u32("value")?;
@@ -5430,207 +5321,11 @@ pub(super) fn text_alignment(r: &mut Reader) -> Result<()> {
     Ok(())
 }
 
-/// 8.3.0 `0x101053363`.
-pub(super) fn style_type_3363(r: &mut Reader) -> Result<()> {
-    r.string("value")?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100fa28f4`.
-pub(super) fn f_100fa28f4(r: &mut Reader) -> Result<()> {
-    r.u8("value")?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100dd70ac`.
-pub(super) fn f_100dd70ac(r: &mut Reader) -> Result<()> {
-    let v = r.file_version;
-    r.bool("NameOnStaves")?;
-    r.bool("NameTopLeft1stPage")?;
-    r.bool("NameCentreOtherPages")?;
-    r.bool("Transpose")?;
-    r.bool("ResetSpacing")?;
-    r.bool("SaveToDirectory")?;
-    r.u32("Format")?;
-    r.bool("PageToSystemBreak")?;
-    r.bool("DeleteSystemBreak")?;
-    r.bool("DeleteOtherBreaks")?;
-    r.bool("ChangeStaveHeight")?;
-    r.f32("NewStaveHeightmm")?;
-    r.bool("ChangePageSize")?;
-    r.f32("NewPageWidthmm")?;
-    r.f32("NewPageHeightmm")?;
-    r.f32("NewPageLeftmm")?;
-    r.f32("NewPageRightmm")?;
-    r.f32("NewPageTopmm")?;
-    r.f32("NewPageBottommm")?;
-    if v < 0x1e0000 {
-        r.u16("RehearsalMarkSize")?;
-    } else {
-        r.u32("RehearsalMarkSize")?;
-    }
-    r.u32("FilenameFormat")?;
-    r.record("record", "Record", |r| {
-        r.bool("OneBarMultirestsInParts")?;
-        if r.since(0x70001) {
-            r.bool("LandscapePage")?;
-        }
-        if r.since(0x70003) {
-            r.bool("ResetSystemText")?;
-        }
-        if r.since(0x70003) {
-            r.bool("ResetRehearsalMarks")?;
-        }
-        if r.since(0x8001a) {
-            r.bool("UseAutoPageBreaks")?;
-        }
-        Ok(())
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x1010b5900`.
-pub(super) fn f_1010b5900(r: &mut Reader) -> Result<()> {
-    let v = r.file_version;
-    if v < 0x350009 {
-        f_1010b5c56(r)?;
-    } else {
-        f_1010b5934(r)?;
-    }
-    Ok(())
-}
-
-/// 8.3.0 `0x1010ea71e`.
-pub(super) fn f_1010ea71e(r: &mut Reader) -> Result<()> {
-    r.bool("IsLegacySwingStyle")?;
-    r.node("LegacySwingId", "StyleId", style_id)?;
-    r.string("CustomSwingKeywordText")?;
-    r.record("record", "Record", |_| Ok(()))?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100dec698`.
-pub(super) fn f_100dec698(r: &mut Reader) -> Result<()> {
-    r.tag(0x45)?;
-    r.u8("InstScaleLength")?;
-    r.f32("InstDeltaVolume")?;
-    r.f32("InstPauseLength")?;
-    r.record("record", "Record", |r| {
-        if r.since(0x20007) {
-            r.f32("InstStressAmount")?;
-        }
-        Ok(())
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100bb2d20`.
-pub(super) fn f_100bb2d20(r: &mut Reader) -> Result<()> {
-    r.list("NumVirtualInstruments", |r| {
-        r.sub("NumVirtualInstrumentsItem", |r| {
-            r.u32("VirtualInstrumentSlotNum")?;
-            r.node("VSTInstrumentParameterSettings", "VstinstrumentParameterSettings", vstinstrument_parameter_settings)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
-    r.list("NumEffectBusses", |r| {
-        r.sub("NumEffectBussesItem", |r| {
-            r.u32("EffectBusNum")?;
-            r.node("VSTEffectParameterSettings", "VsteffectParameterSettings", vsteffect_parameter_settings)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
-    r.record("record", "Record", |_| Ok(()))?;
-    Ok(())
-}
-
-/// 8.3.0 `0x1009b4168`.
-pub(super) fn f_1009b4168(r: &mut Reader) -> Result<()> {
-    r.u32("PitchedInstrumentPreset")?;
-    r.u32("UnpitchedPercussionPreset")?;
-    r.record("record", "Record", |_| Ok(()))?;
-    Ok(())
-}
-
-/// 8.3.0 `0x1009b9f12`.
-pub(super) fn f_1009b9f12(r: &mut Reader) -> Result<()> {
-    r.f32("OptimalFlamDragDynamicPerNoteReductionRatio")?;
-    r.f32("MaximumFlamDragDynamicGraceNoteGroupReductionRatio")?;
-    r.f32("MinimumFlamDragDynamicReductionRatioForLastGraceNote")?;
-    r.record("record", "Record", |r| {
-        if r.since(0x3d0008) {
-            r.u32("MordentNoteDuration_ms")?;
-            r.u16("MordentNoteDurationSrs")?;
-            r.f32("MaxTimeToStealFromRhythmicNoteForMordents")?;
-        }
-        Ok(())
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x10104f69d`.
-pub(super) fn style_type_f69d(r: &mut Reader) -> Result<()> {
-    r.string("value")?;
-    Ok(())
-}
-
-/// 8.3.0 `0x101008c4e`.
-pub(super) fn f_101008c4e(r: &mut Reader) -> Result<()> {
-    r.u32("Index")?;
-    r.node("Editable", "NoteStyle", note_style)?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100d98274`.
-pub(super) fn list_families(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListFamiliesItem", |r| {
-            f_100d8c5a0(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100f3a61c`.
-pub(super) fn list_sub_symbols(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListSubSymbolsItem", |r| {
-            f_100ee50ce(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
-    Ok(())
-}
-
-/// 8.3.0 `0x101008f48`.
-pub(super) fn f_101008f48(r: &mut Reader) -> Result<()> {
-    r.u32("Index")?;
-    r.node("Editable", "Editable", editable)?;
-    Ok(())
-}
-
-/// 8.3.0 `0x1010563e2`.
-pub(super) fn sound_idchange_duration(r: &mut Reader) -> Result<()> {
-    r.u32("value")?;
-    Ok(())
-}
-
-/// 8.3.0 `0x1010524e9`.
-pub(super) fn style_type_24e9(r: &mut Reader) -> Result<()> {
-    r.string("value")?;
-    Ok(())
-}
-
 /// 8.3.0 `0x100f31c82`.
 pub(super) fn start_symbol(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     r.tag(0x4a)?;
-    r.node("Symbol", "Symbol", symbol)?;
+    r.node("Symbol", "SymbolIndex", symbol_index)?;
     if v < 0x1e0000 {
         r.u16("Dx")?;
     } else {
@@ -5661,26 +5356,20 @@ pub(super) fn midi_patch(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100e13492`.
-pub(super) fn f_100e13492(r: &mut Reader) -> Result<()> {
+pub(super) fn hit_point_item(r: &mut Reader) -> Result<()> {
     r.tag(0x65)?;
-    f_100e134da(r)?;
+    hit_point_item_body(r)?;
     Ok(())
 }
 
 /// 8.3.0 `0x100f47537`.
-pub(super) fn f_100f47537(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("F100f47537Item", |r| {
-            r.u8("value")?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+pub(super) fn list_string_pitches(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, u8)?;
     Ok(())
 }
 
 /// 8.3.0 `0x100dd2272`.
-pub(super) fn f_100dd2272(r: &mut Reader) -> Result<()> {
+pub(super) fn drum_kit(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     list_drum_kit_sounds(r, "DrumKitSounds")?;
     if v > 0x60004 {
@@ -5695,15 +5384,38 @@ pub(super) fn f_100dd2272(r: &mut Reader) -> Result<()> {
     Ok(())
 }
 
+/// 8.3.0 `0x100bb19e5`.
+pub(super) fn vstinstrument_parameter_settings(r: &mut Reader) -> Result<()> {
+    r.tag(0x86)?;
+    vst_instrument_parameter_settings_body(r)?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100bb1d9a`.
+pub(super) fn vsteffect_parameter_settings(r: &mut Reader) -> Result<()> {
+    r.tag(0x87)?;
+    vst_effect_parameter_settings_body(r)?;
+    Ok(())
+}
+
+/// 8.3.0 `0x100d8c5a0`.
+pub(super) fn family(r: &mut Reader) -> Result<()> {
+    r.tag(0x6f)?;
+    r.string("Name")?;
+    list_instrument_style_ids(r, "InstrumentStyleIds")?;
+    r.record("record", "Record", |_| Ok(()))?;
+    Ok(())
+}
+
 /// 8.3.0 `0x1010b5c56`.
-pub(super) fn f_1010b5c56(r: &mut Reader) -> Result<()> {
+pub(super) fn legacy_chord_symbol_settings(r: &mut Reader) -> Result<()> {
     r.tag(0x7d)?;
-    f_1010b5934(r)?;
+    chord_symbol_settings(r)?;
     Ok(())
 }
 
 /// 8.3.0 `0x1010b5934`.
-pub(super) fn f_1010b5934(r: &mut Reader) -> Result<()> {
+pub(super) fn chord_symbol_settings(r: &mut Reader) -> Result<()> {
     r.u32("DefaultChordSymbolElements")?;
     r.u32("ArrangementOfExtensions")?;
     r.u32("RootNoteAccidentalPosition")?;
@@ -5738,31 +5450,8 @@ pub(super) fn f_1010b5934(r: &mut Reader) -> Result<()> {
     Ok(())
 }
 
-/// 8.3.0 `0x100bb19e5`.
-pub(super) fn vstinstrument_parameter_settings(r: &mut Reader) -> Result<()> {
-    r.tag(0x86)?;
-    f_100bb1778(r)?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100bb1d9a`.
-pub(super) fn vsteffect_parameter_settings(r: &mut Reader) -> Result<()> {
-    r.tag(0x87)?;
-    f_100bb1cbc(r)?;
-    Ok(())
-}
-
-/// 8.3.0 `0x100d8c5a0`.
-pub(super) fn f_100d8c5a0(r: &mut Reader) -> Result<()> {
-    r.tag(0x6f)?;
-    r.string("Name")?;
-    list_instrument_style_ids(r, "InstrumentStyleIds")?;
-    r.record("record", "Record", |_| Ok(()))?;
-    Ok(())
-}
-
 /// 8.3.0 `0x100ee50ce`.
-pub(super) fn f_100ee50ce(r: &mut Reader) -> Result<()> {
+pub(super) fn sub_symbol(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     r.tag(0x49)?;
     r.i16("Symbol")?;
@@ -5787,7 +5476,7 @@ pub(super) fn f_100ee50ce(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100e134da`.
-pub(super) fn f_100e134da(r: &mut Reader) -> Result<()> {
+pub(super) fn hit_point_item_body(r: &mut Reader) -> Result<()> {
     r.u64("Time")?;
     r.string("Name")?;
     r.record("record", "Record", |_| Ok(()))?;
@@ -5796,18 +5485,12 @@ pub(super) fn f_100e134da(r: &mut Reader) -> Result<()> {
 
 /// 8.3.0 `0x100dd3066`.
 pub(super) fn list_drum_kit_sounds(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListDrumKitSoundsItem", |r| {
-            f_100dee849(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list(name, |r| r.sub("DrumKitSoundSet", drum_kit_sound_set).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100bb1778`.
-pub(super) fn f_100bb1778(r: &mut Reader) -> Result<()> {
+pub(super) fn vst_instrument_parameter_settings_body(r: &mut Reader) -> Result<()> {
     r.f32("Gain")?;
     r.f32("Pan")?;
     r.list("NumEffectSends", |r| {
@@ -5823,7 +5506,7 @@ pub(super) fn f_100bb1778(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100bb1cbc`.
-pub(super) fn f_100bb1cbc(r: &mut Reader) -> Result<()> {
+pub(super) fn vst_effect_parameter_settings_body(r: &mut Reader) -> Result<()> {
     r.f32("OutputLevel")?;
     r.record("record", "Record", |_| Ok(()))?;
     Ok(())
@@ -5831,40 +5514,28 @@ pub(super) fn f_100bb1cbc(r: &mut Reader) -> Result<()> {
 
 /// 8.3.0 `0x100d8ce20`.
 pub(super) fn list_instrument_style_ids(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("ListInstrumentStyleIdsItem", |r| {
-            style_id(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+    r.list(name, |r| r.sub("StyleId", style_id).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100dee849`.
-pub(super) fn f_100dee849(r: &mut Reader) -> Result<()> {
-    f_100deea60(r, "items")?;
+pub(super) fn drum_kit_sound_set(r: &mut Reader) -> Result<()> {
+    list_drum_kit_sound_items(r, "items")?;
     Ok(())
 }
 
 /// 8.3.0 `0x100deea60`.
-pub(super) fn f_100deea60(r: &mut Reader, name: &'static str) -> Result<()> {
-    r.list(name, |r| {
-        r.sub("F100deea60Item", |r| {
-            f_100deca3c(r)?;
-            Ok(())
-        })
-        .map(Value::Node)
-    })?;
+pub(super) fn list_drum_kit_sound_items(r: &mut Reader, name: &'static str) -> Result<()> {
+    r.list(name, |r| r.sub("DrumKitSound", drum_kit_sound).map(Value::Node))?;
     Ok(())
 }
 
 /// 8.3.0 `0x100deca3c`.
-pub(super) fn f_100deca3c(r: &mut Reader) -> Result<()> {
+pub(super) fn drum_kit_sound(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     r.tag(0x54)?;
     r.string("Sound")?;
-    r.node("NoteHead", "F100fa5494", f_100fa5494)?;
+    r.node("NoteHead", "NoteheadStyleRef", notehead_style_ref)?;
     if v < 0x230000 {
         r.bool("UseHardWiredPitch")?;
         r.u8("HardWiredPitch")?;
@@ -5883,7 +5554,7 @@ pub(super) fn f_100deca3c(r: &mut Reader) -> Result<()> {
 }
 
 /// 8.3.0 `0x100fa5494`.
-pub(super) fn f_100fa5494(r: &mut Reader) -> Result<()> {
+pub(super) fn notehead_style_ref(r: &mut Reader) -> Result<()> {
     let v = r.file_version;
     if (0x100000..0x130000).contains(&v) {
         style_id(r)?;

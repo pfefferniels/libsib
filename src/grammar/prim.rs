@@ -85,7 +85,13 @@ pub fn part_map(r: &mut Reader, name: &'static str, value: impl Fn(&mut Reader) 
                 .map(Value::Node)
             })
             .collect::<Result<Vec<_>>>()?;
-        r.push("overrides", Value::List(List { count: Count::U32 { scale: 2 }, items }));
+        r.push(
+            "overrides",
+            Value::List(List {
+                count: Count::U32 { scale: 2 },
+                items,
+            }),
+        );
         Ok(())
     })
 }

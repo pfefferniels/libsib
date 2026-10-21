@@ -149,23 +149,33 @@ with fonts, worksheet settings and part settings. Each part's version gates are
 in the readers.
 
 Bar objects start with a tag in 0x07–0x2d (plus 0x92 and 0x93) that selects
-the reader. Unknown tags are skipped as a record. The roles below are guessed
-from the field names of each reader.
+the reader. Unknown tags are skipped as a record. The table gives the class
+each reader constructs, as named by the run-time type information of 8.3.0
+(0x1c only exists in 2025.3).
 
-| Tag | Role | Tag | Role |
+| Tag | Class | Tag | Class |
 |---|---|---|---|
-| 07 | clef | 1b | rit./accel. |
-| 08 | barline | 1f | symbol |
-| 09 | time signature | 22 | text-like object with angle |
-| 0a | key signature | 23 | bar number change |
-| 0c 16 17 | lines | 24 | chord symbol and guitar frame |
-| 0e 0f | hairpins | 25 | transposition change |
-| 10 | glissando | 26 | rehearsal mark |
-| 13 | repeat ending | 27 | instrument change |
-| 14 | slur | 28 | object with symbol and duration (bar rest?) |
-| 15 | trill | 29 | note/rest/chord |
-| 18 | text | 2a | graphic |
-| 19 | lyric | 93 | annotation strokes |
+| 07 | Clef | 1a | Highlight |
+| 08 | SpecialBarline | 1b | RitardLine |
+| 09 | TimeSignature | 1c | staff filter |
+| 0a | KeySignature | 1f | SymbolItem |
+| 0c | MusicLine | 21 | SystemTextItem |
+| 0d | ArpeggioLine | 22 | TextItem |
+| 0e 0f | Hairpin (crescendo, diminuendo) | 23 | BarNumber |
+| 10 | GlissandoLine | 24 | GuitarFrame |
+| 11 | OctavaLine | 25 | Transposition |
+| 12 | PedalLine | 26 | RehearsalMark |
+| 13 | RepeatTimeLine | 27 | InstrumentChange |
+| 14 | Slur | 28 | BarRest |
+| 15 | Trill | 29 | NoteRest |
+| 16 | Box | 2a | Graphic |
+| 17 | BeamLine | 2b | SystemSymbolItem |
+| 18 | Tuplet | 2c | CommentItem |
+| 19 | LyricItem | 2d | PlayerChange |
+| 92 | Item | 93 | AnnotationItem |
+
+Readers in `src/grammar/readers.rs` are named after these classes where the
+binary names them, and otherwise after the fields they read.
 
 Other payloads: version info and idea info (kinds 13 and 5), and Idea clips
 (tag 0x6a), which name the styles they need where scores use indices.

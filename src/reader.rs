@@ -34,7 +34,18 @@ pub struct Reader<'a> {
 
 impl<'a> Reader<'a> {
     pub fn new(data: &'a [u8], version: u32, flags: u32) -> Self {
-        Self { data, pos: 0, version, file_version: version, newest: version, flags, string_refs: false, limit: data.len(), stack: vec![Node::new("Payload")], trace: false }
+        Self {
+            data,
+            pos: 0,
+            version,
+            file_version: version,
+            newest: version,
+            flags,
+            string_refs: false,
+            limit: data.len(),
+            stack: vec![Node::new("Payload")],
+            trace: false,
+        }
     }
 
     /// Lets records that end in unread bytes be reread with the field layout
@@ -84,7 +95,10 @@ impl<'a> Reader<'a> {
     }
 
     pub fn peek_u8(&self) -> Result<u8> {
-        self.data[..self.limit].get(self.pos).copied().ok_or_else(|| self.fail("unexpected end of record"))
+        self.data[..self.limit]
+            .get(self.pos)
+            .copied()
+            .ok_or_else(|| self.fail("unexpected end of record"))
     }
 
     pub fn path(&self) -> String {
@@ -100,7 +114,11 @@ impl<'a> Reader<'a> {
 
     /// Fails unless `cond` holds; used to pin down hypotheses about constant fields.
     pub fn expect(&self, cond: bool, what: &str) -> Result<()> {
-        if cond { Ok(()) } else { Err(self.fail(format!("expected {what}"))) }
+        if cond {
+            Ok(())
+        } else {
+            Err(self.fail(format!("expected {what}")))
+        }
     }
 
     fn take(&mut self, n: usize) -> Result<&'a [u8]> {
@@ -161,7 +179,12 @@ impl<'a> Reader<'a> {
         }
         let bytes = self.take(len)?;
         Ok(if utf16 {
-            Value::Str(bytes.chunks_exact(2).map(|p| u16::from_be_bytes([p[0], p[1]])).collect())
+            Value::Str(
+                bytes
+                    .chunks_exact(2)
+                    .map(|p| u16::from_be_bytes([p[0], p[1]]))
+                    .collect(),
+            )
         } else {
             Value::Str8(bytes.to_vec())
         })
@@ -282,7 +305,12 @@ impl<'a> Reader<'a> {
         outcome.map(|()| node)
     }
 
-    pub fn node(&mut self, name: &'static str, kind: &'static str, body: impl FnOnce(&mut Self) -> Result<()>) -> Result<()> {
+    pub fn node(
+        &mut self,
+        name: &'static str,
+        kind: &'static str,
+        body: impl FnOnce(&mut Self) -> Result<()>,
+    ) -> Result<()> {
         let node = self.sub(kind, body)?;
         self.current().push(name, Value::Node(node));
         Ok(())
@@ -295,7 +323,12 @@ impl<'a> Reader<'a> {
     /// fields at the ends of records, where older readers skip them. So when
     /// bytes are left over, the body is reread with the newest layout and that
     /// reading is kept if it explains more of the record.
-    pub fn record(&mut self, name: &'static str, kind: &'static str, mut body: impl FnMut(&mut Self) -> Result<()>) -> Result<()> {
+    pub fn record(
+        &mut self,
+        name: &'static str,
+        kind: &'static str,
+        mut body: impl FnMut(&mut Self) -> Result<()>,
+    ) -> Result<()> {
         let varint_start = self.pos;
         let len = self.read_varint()? as usize;
         if len > self.remaining() {
@@ -307,19 +340,33 @@ impl<'a> Reader<'a> {
         let outer = std::mem::replace(&mut self.limit, start + len);
         let mut node = self.sub(kind, &mut body);
         if node.is_ok() && self.pos < self.limit {
-            node = Ok(self.reread_as_newest(start, kind, &mut body).unwrap_or_else(|| node.expect("checked")));
+            node = Ok(self
+                .reread_as_newest(start, kind, &mut body)
+                .unwrap_or_else(|| node.expect("checked")));
         }
         self.limit = outer;
         let node = node?;
         let padding = self.read_bytes(start + len - self.pos)?;
-        self.current().push(name, Value::Record(Record { body: node, padding, length_width }));
+        self.current().push(
+            name,
+            Value::Record(Record {
+                body: node,
+                padding,
+                length_width,
+            }),
+        );
         Ok(())
     }
 
     /// Rereads the record body that began at `start` with the newest layout.
     /// Returns it only if it reads further; otherwise the reader is left as the
     /// first reading left it.
-    fn reread_as_newest(&mut self, start: usize, kind: &'static str, body: &mut impl FnMut(&mut Self) -> Result<()>) -> Option<Node> {
+    fn reread_as_newest(
+        &mut self,
+        start: usize,
+        kind: &'static str,
+        body: &mut impl FnMut(&mut Self) -> Result<()>,
+    ) -> Option<Node> {
         if self.version >= self.newest {
             return None;
         }
@@ -345,14 +392,31 @@ impl<'a> Reader<'a> {
             return Err(self.fail(format!("implausible count {n}")));
         }
         let items = (0..n).map(|_| item(self)).collect::<Result<Vec<_>>>()?;
-        self.current().push(name, Value::List(List { count: Count::U32 { scale: 1 }, items }));
+        self.current().push(
+            name,
+            Value::List(List {
+                count: Count::U32 { scale: 1 },
+                items,
+            }),
+        );
         Ok(n)
     }
 
     /// A list whose count is known from earlier fields.
-    pub fn list_n(&mut self, name: &'static str, n: usize, mut item: impl FnMut(&mut Self) -> Result<Value>) -> Result<()> {
+    pub fn list_n(
+        &mut self,
+        name: &'static str,
+        n: usize,
+        mut item: impl FnMut(&mut Self) -> Result<Value>,
+    ) -> Result<()> {
         let items = (0..n).map(|_| item(self)).collect::<Result<Vec<_>>>()?;
-        self.current().push(name, Value::List(List { count: Count::Implied, items }));
+        self.current().push(
+            name,
+            Value::List(List {
+                count: Count::Implied,
+                items,
+            }),
+        );
         Ok(())
     }
 

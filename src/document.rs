@@ -30,7 +30,9 @@ impl Document {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        Ok(Self { root: container::parse(bytes)? })
+        Ok(Self {
+            root: container::parse(bytes)?,
+        })
     }
 
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
@@ -120,7 +122,10 @@ fn length_prefixed(data: &[u8]) -> Result<&[u8]> {
         .map(|w| u32::from_be_bytes(w.try_into().expect("four bytes")) as usize)
         .ok_or(Error::UnexpectedEof { offset: 0 })?;
     if data.len() != 4 + len {
-        return Err(Error::Malformed { offset: 0, message: format!("length prefix {len} for {} bytes", data.len() - 4) });
+        return Err(Error::Malformed {
+            offset: 0,
+            message: format!("length prefix {len} for {} bytes", data.len() - 4),
+        });
     }
     Ok(&data[4..])
 }

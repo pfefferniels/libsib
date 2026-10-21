@@ -62,7 +62,9 @@ fn tree(path: &Path) -> CliResult {
     root.walk().iter().for_each(|(kinds, chunk)| {
         let indent = "  ".repeat(kinds.len() + 1);
         let payload = chunk.payload.as_ref().map_or_else(String::new, |p| {
-            let seed = p.key.map_or_else(|| "plain".to_owned(), |k| format!("seed {:08x}", k.seed()));
+            let seed = p
+                .key
+                .map_or_else(|| "plain".to_owned(), |k| format!("seed {:08x}", k.seed()));
             format!(" payload {} bytes ({seed})", p.data.len())
         });
         println!(
@@ -155,7 +157,12 @@ fn check_files(files: &[String]) -> CliResult {
                 100.0 * skipped as f64 / bytes.max(1) as f64
             );
             findings.iter().filter(|x| x.problem.is_some()).for_each(|x| {
-                println!("      {} v{:08x}: {}", path_label(&x.path), x.version, x.problem.as_deref().unwrap_or(""));
+                println!(
+                    "      {} v{:08x}: {}",
+                    path_label(&x.path),
+                    x.version,
+                    x.problem.as_deref().unwrap_or("")
+                );
             });
             Ok(bad)
         })
@@ -165,7 +172,11 @@ fn check_files(files: &[String]) -> CliResult {
         .count();
     match failures {
         0 => Ok(()),
-        n => Err(format!("{n} of {} files have chunks that do not decode or round-trip", files.len()).into()),
+        n => Err(format!(
+            "{n} of {} files have chunks that do not decode or round-trip",
+            files.len()
+        )
+        .into()),
     }
 }
 
@@ -214,7 +225,12 @@ fn padding(args: &[String]) -> CliResult {
     rows.iter().for_each(|(path, s)| {
         let first = s.versions.first().copied().unwrap_or(0);
         let last = s.versions.last().copied().unwrap_or(0);
-        println!("{:>10} bytes {:>8} records  v{first:08x}..v{last:08x}  {path}\n      e.g. {}", s.bytes, s.records, hex(&s.example));
+        println!(
+            "{:>10} bytes {:>8} records  v{first:08x}..v{last:08x}  {path}\n      e.g. {}",
+            s.bytes,
+            s.records,
+            hex(&s.example)
+        );
     });
     Ok(())
 }
