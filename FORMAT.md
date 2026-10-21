@@ -205,8 +205,56 @@ fields that later releases added come from the 2025.3 readers
   `FilterInfo`, `PartID`, `VStaveID`, `FillColor`, `Description`, …);
 - `PartsToExtract` items take a second word from 0x42, as part keys do.
 
+## Meaning of the music fields
+
+The grammar names fields but does not say what their values mean. The
+following was inferred from the test files while writing a MusicXML converter
+([sib2mxl](https://github.com/pfefferniels/sib2mxl)); it holds for all of them
+as far as I can see, but rests on observation rather than on the binary.
+
+- Positions (`Sr`) count ticks, 256 to a quarter note, from the start of the
+  bar. Bar 0 of every stave holds the initial clef, key signature and
+  instrument. `Sr` 0xffff means the start of a bar (time signatures, starting
+  repeats), 0x7f00 its end (a clef or key change before the barline).
+- Bars store no length. The spacing table does: in `BarSpacings`, the entries
+  whose `Count` has bit 0x8000 set mark the bar's edges, and the largest of
+  their positions below 0x7f00 is where the bar ends. This gives pickups and
+  irregular bars; time signatures carry only their nominal length
+  (`SrAfterEndOfBar`).
+- `Durn` of a note or rest: the low four bits are log2 of the undotted length
+  in ticks (10 is a whole note, 8 a quarter), bits 4–5 the number of dots, bit
+  6 marks a grace note. Notes in tuplets keep their written value; the tuplet
+  (tag 0x18) gives `Left`:`Right` (3:2 for a triplet), its full span in
+  `TupletLength` and the distance to its last note in `Duration`. Hidden
+  tuplets still apply.
+- `Trem`: the low two bits are the beam mode (0 none, 1 start a beam, 2
+  continue it, 3 continue with the primary beam only), bits 2–4 the strokes of
+  a one-note tremolo.
+- `Artic` is a bit set in the order of ManuScript's articulation constants:
+  bit 1 staccato, 2 staccatissimo, 3 wedge, 4 tenuto, 5 accent, 6 marcato,
+  7 harmonic, 8 plus, 9 up-bow, 10 down-bow, 12 square pause, 13 pause,
+  14 triangular pause.
+- `Diat` counts diatonic steps from C in octave −1 and `Chrom2` quarter tones
+  from the same C, both at sounding pitch; their difference is the accidental.
+  The instrument type's `PartDiat` and `PartChrom2` give the interval from
+  written to sounding pitch. On tablature staves of the first versions `Diat`
+  holds the string instead.
+- Bit 0x80 of a note's `Flags` means it is tied to the next note of the same
+  pitch in its voice. A slur's `Duration` runs from the onset of its first note
+  to the onset of its last. `Voices` is a bit set, one bit per voice.
+- A symbol (tag 0x1f) refers to the `Index` of an entry in `IndexedSymbols`
+  (not its position in the list); the indices are the same in every language,
+  for instance 32 trill, 36 inverted mordent, 37 mordent, 38 turn, 221 fermata.
+- Stave types have a `Category` (0 pitched, 1 percussion, 2 tablature) and
+  say whether the stave shows key signatures (`KeySignatures`).
+- Lyrics with `SyllableType` 0 are followed by a hyphen; 1 ends a word.
+- Files of the first versions refer to text, line and clef styles by their
+  index in the style lists; later ones by id, such as `clef.treble`.
+
 ## Open questions
 
+- `CrossStaveType` on notes takes the values 0, 2 and 3, but in the test files
+  it does not consistently mark notes drawn on another staff.
 - Files written by Sibelius 2025.4 and later (0x450004, 0x450005) end their
   options record with one to three bytes that 2025.3 does not read. They
   round-trip as raw bytes. Naming them needs a later binary.
