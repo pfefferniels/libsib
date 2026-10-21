@@ -247,14 +247,44 @@ as far as I can see, but rests on observation rather than on the binary.
   for instance 32 trill, 36 inverted mordent, 37 mordent, 38 turn, 221 fermata.
 - Stave types have a `Category` (0 pitched, 1 percussion, 2 tablature) and
   say whether the stave shows key signatures (`KeySignatures`).
+- The low two bits of a note's `Acc` give how its accidental is shown (0 as
+  needed, 1 hidden, 2 cautionary, 3 bracketed); the higher bits seem to be a
+  horizontal offset.
+- `CrossStaveType` 2 draws a chord on the staff above, 3 on the staff below.
+  It takes effect only where that staff belongs to the same instrument; on
+  other staves the value has no visible effect.
+- `FlipStem` flips a stem from the direction it would have by default.
+- `Arpeggio` on a chord: 1 an arpeggio, 2 upwards, 3 downwards.
+- `BreakType` of a bar in `BarSpacings` is a bit set of where the music may
+  break after it: 1 within a system, 2 at the end of a system, 4 at the end of
+  a page. The usual value is 7; 2 forces a system break, 4 a page break.
+- Text style `Height` and the size command in text (`\s80\`) count 32nds of a
+  staff space; a text style's `FontName`, `Bold`, `Italic` and `Underline` set
+  the rest of its font. The document's page and staff size are in the options'
+  `PageAndStaveMargins`, in millimetres.
+- Line styles that a file uses are stored with it: `LineType` 1 solid, 2 dotted,
+  3 dashed; `StartCapNotchDy` and `EndCapNotchDy` the hooks at either end
+  (negative pointing down); `ArrowType` and `EndCapArrowType` arrowheads; the
+  caption in `CaptionRef`. Built-in styles that a file does not use are left out.
+- A chord symbol (tag 0x24) names its chord by root and bass pitch class
+  (`Root`, `Bass`), their spelling as a diatonic step (`RootSpelling`,
+  `BassSpelling`) and a chord type id such as `m9` or `13b9b5`. Its diagram has
+  one element per string from the lowest: `ElementType` 0 muted, 1 fretted,
+  2 under the barre, at the pitch `Chrom2`. Tablature stave types list their
+  open strings in `Pitches`.
+- Instrument changes carry a style clef for concert pitch (`ClefStyle`) and
+  one for transposed display (`TransposingClefStyle`).
 - Lyrics with `SyllableType` 0 are followed by a hyphen; 1 ends a word.
+- Figured bass is written in Sibelius' figured bass font, where letters stand
+  for figures with accidentals (`h` is 6♯, `B` is ♭5, `´` a slashed 6).
 - Files of the first versions refer to text, line and clef styles by their
   index in the style lists; later ones by id, such as `clef.treble`.
 
 ## Open questions
 
-- `CrossStaveType` on notes takes the values 0, 2 and 3, but in the test files
-  it does not consistently mark notes drawn on another staff.
+- Text objects store offsets (`Dx`, `Dy`) that do not match positions measured
+  from the staff; they seem to be relative to the text style's default
+  position.
 - Files written by Sibelius 2025.4 and later (0x450004, 0x450005) end their
   options record with one to three bytes that 2025.3 does not read. They
   round-trip as raw bytes. Naming them needs a later binary.
